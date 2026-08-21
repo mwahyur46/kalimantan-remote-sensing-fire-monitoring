@@ -3,7 +3,7 @@
  *
  *  Monitors widespread wildfire events across Kalimantan (Indonesian Borneo)
  *  using multi-source satellite data:
- *    - VIIRS FIRMS 375m      : active fire hotspot detection (last 14 days)
+ *    - VIIRS NRT 375m (SNPP) : active fire hotspot detection (NASA/LANCE/SNPP_VIIRS/C2)
  *    - Landsat 8/9 C2 L2 SR  : pre/post-fire composites, ATBI, dATBI burn severity
  *    - Sentinel-1 GRD        : SAR backscatter change (cloud-penetrating layer)
  *
@@ -36,7 +36,7 @@
 // 1. CONFIGURATION -- all tuneable parameters in one place
 // ============================================================================
 var END_DATE       = '2026-08-21';   // Post-fire window end (analysis date)
-var START_DATE     = '2026-08-07';   // Post-fire window start (14-day lookback)
+var START_DATE     = '2026-08-01';   // Post-fire window start (21-day lookback)
 var PRE_FIRE_START = '2026-07-01';   // Pre-fire reference composite start
 var PRE_FIRE_END   = '2026-07-31';   // Pre-fire reference composite end
 
@@ -96,29 +96,93 @@ function loadProvinces() {
 }
 
 // ============================================================================
-// 4. VIIRS FIRMS -- Active fire hotspot detections
+// 4. VIIRS NRT -- Active fire detections (375m, Suomi-NPP VIIRS C2)
 // ============================================================================
 /**
- * Loads VIIRS 375m active fire detections from the GEE FIRMS FeatureCollection.
- * Filters by date range, spatial bounds, and confidence level.
+ * Loads VIIRS 375m NRT active fire data from NASA/LANCE/SNPP_VIIRS/C2.
+ * This collection supersedes MODIS FIRMS for NRT monitoring: 375m resolution
+ * detects smaller fires missed at MODIS 1km, and Suomi-NPP VIIRS is actively
+ * operating in 2026 (Giglio et al. 2025).
  *
- * VIIRS confidence encoding in the FIRMS FeatureCollection:
- *   'l' = low  |  'n' = nominal  |  'h' = high
- * Only nominal and high detections are loaded to suppress false positives,
- * consistent with Urbanski (2018) and Giglio et al. (2025).
+ * Key band: 'Mask' (fire detection categorisation per pixel)
+ *   0  = non-fire land
+ *   3  = non-fire water
+ *   5  = fire, low confidence
+ *   7  = fire, nominal confidence   <- included
+ *   8  = fire, high confidence      <- included
+ *   9  = fire, high confidence      <- included
  *
- * @param {ee.Geometry} geometry  - Spatial filter geometry
+ * Additional bands: MaxFRP (fire radiative power, MW), QA, sample.
+ *
+ * Returns two masked images (nominal and high) plus ee.Number pixel counts.
+ *
+ * @param {ee.Geometry} geometry  - Spatial filter and clip geometry
  * @param {string}      startDate - Inclusive start date (YYYY-MM-DD)
  * @param {string}      endDate   - Inclusive end date (YYYY-MM-DD)
- * @returns {ee.FeatureCollection} Filtered VIIRS fire detection points
+ * @returns {{nominal: ee.Image, high: ee.Image,
+ *            nominalCount: ee.Number, highCount: ee.Number,
+ *            totalCount: ee.Number, provinceCount: function}}
  */
 function loadVIIRS(geometry, startDate, endDate) {
-  var firms = ee.FeatureCollection('FIRMS')
+  var col = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
     .filterDate(startDate, endDate)
     .filterBounds(geometry)
-    .filter(ee.Filter.inList('confidence', ['n', 'h']));
-  print('VIIRS detections (nominal + high, ' + startDate + ' to ' + endDate + '):', firms.size());
-  return firms;
+    .select('confidence');
+
+  print('VIIRS NRT daily image count (' + startDate + ' to ' + endDate + '):', col.size());
+
+  // Max-composite: each 375m pixel gets the highest confidence seen across days.
+  var maxConf = col.max().clip(geometry);
+
+  // Diagnostic: print confidence value range to confirm encoding (0-100 integer expected)
+  print('VIIRS confidence value range:', maxConf.reduceRegion({
+    reducer: ee.Reducer.minMax(), geometry: geometry, scale: 10000, maxPixels: 1e9
+  }));
+
+  // VIIRS NRT confidence encoding (NASA/LANCE/SNPP_VIIRS/C2):
+  //   0 = low confidence  (excluded per Urbanski 2018)
+  //   1 = nominal confidence
+  //   2 = high confidence
+  var nominal = maxConf.updateMask(maxConf.eq(1));
+  var high    = maxConf.updateMask(maxConf.eq(2));
+  var allFire = maxConf.updateMask(maxConf.gte(1));
+
+  // Pixel counts at 375m native resolution
+  function pixelCount(img) {
+    return img.reduceRegion({
+      reducer  : ee.Reducer.count(),
+      geometry : geometry,
+      scale    : 375,
+      maxPixels: 1e10,
+      tileScale: 4
+    }).getNumber('confidence');
+  }
+
+  var nomCount   = pixelCount(nominal);
+  var highCount  = pixelCount(high);
+  var totalCount = pixelCount(allFire);
+
+  print('VIIRS fire pixels -- nominal:', nomCount, '| high:', highCount, '| total:', totalCount);
+
+  // Province-level count function (called per province in panel builder)
+  function provinceCount(provGeom) {
+    return allFire.reduceRegion({
+      reducer  : ee.Reducer.count(),
+      geometry : provGeom,
+      scale    : 375,
+      maxPixels: 1e10,
+      tileScale: 4
+    }).getNumber('confidence');
+  }
+
+  return {
+    nominal      : nominal,
+    high         : high,
+    nominalCount : nomCount,
+    highCount    : highCount,
+    totalCount   : totalCount,
+    provinceCount: provinceCount
+  };
 }
 
 // ============================================================================
@@ -193,8 +257,17 @@ function getLandsatComposite(geometry, startDate, endDate) {
 function computeATBI(lsImage) {
   var nir   = lsImage.select('SR_B5');
   var swir2 = lsImage.select('SR_B7');
-  var nbr   = nir.subtract(swir2).divide(nir.add(swir2));
-  return nbr.multiply(swir2.divide(nir)).rename('ATBI');
+  // Valid land pixels: both bands must be positive and below 1.0 (physical SR range).
+  // NIR < 0.1 covers open water (very low NIR), where SWIR2/NIR diverges.
+  // Requiring NIR > 0.05 removes ocean, deep water, and cloud-shadow artefacts.
+  var validMask = nir.gt(0.05)
+    .and(swir2.gt(0))
+    .and(nir.lt(1.0))
+    .and(swir2.lt(1.0));
+  var nbr = nir.subtract(swir2).divide(nir.add(swir2));
+  return nbr.multiply(swir2.divide(nir))
+    .updateMask(validMask)
+    .rename('ATBI');
 }
 
 /**
@@ -259,8 +332,14 @@ function otsuThreshold(datbi, geometry) {
 
   var between = wB.multiply(wF).multiply(mB.subtract(mF).pow(2));
 
-  var idx     = between.argmax().get([0]);
-  var rawT    = ee.Number(vals.get([idx]));
+  // Find the maximum between-class variance, then locate the bin value where
+  // between equals that max. Avoids argmax indexing entirely -- .get() on an
+  // ee.Array returns a plain JS primitive when GEE can resolve it, which breaks
+  // ee.Number() when the value is 0. Using max+eq keeps everything server-side.
+  var maxB    = between.reduce(ee.Reducer.max(), [0]);        // shape-[1] ee.Array
+  var maxBRep = maxB.repeat(0, ee.Number(n));                 // broadcast to length n
+  var isMax   = between.eq(maxBRep);                          // 1 at argmax, 0 elsewhere
+  var rawT    = vals.multiply(isMax).reduce(ee.Reducer.sum(), [0]).get([0]);
 
   // Apply bias and floor
   return rawT.add(OTSU_BIAS).max(OTSU_MIN);
@@ -286,7 +365,8 @@ function classifyBurnSeverity(datbi, burnThreshold) {
   var mod = T.add(SEV_MOD_OFFSET);
   var hi  = T.add(SEV_HIGH_OFFSET);
 
-  return ee.Image(0)
+  // Start from datbi's own mask so cloud/water gaps are not rendered as gray.
+  return datbi.multiply(0)
     .where(datbi.gte(T).and(datbi.lt(ee.Image(mod))),  1)
     .where(datbi.gte(ee.Image(mod)).and(datbi.lt(ee.Image(hi))), 2)
     .where(datbi.gte(ee.Image(hi)),                    3)
@@ -440,9 +520,9 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
   // --- Title block ---
   panel.add(ui.Label('Kalimantan Wildfire Monitor',
     {fontWeight: 'bold', fontSize: '16px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label('August 7-21, 2026 -- Active Fires & Burn Scars',
+  panel.add(ui.Label('August 1-21, 2026 -- Active Fires & Burn Scars',
     {fontSize: '12px', color: '#444', margin: '0 0 2px 0'}));
-  panel.add(ui.Label('VIIRS 375m  |  Landsat 8/9 dATBI  |  Sentinel-1 SAR',
+  panel.add(ui.Label('VIIRS NRT 375m  |  Landsat 8/9 dATBI  |  Sentinel-1 SAR',
     {fontSize: '11px', color: '#666', margin: '0 0 6px 0'}));
   panel.add(ui.Label('Muhammad Wahyu Ramadhan',
     {fontSize: '11px', margin: '0'}));
@@ -470,8 +550,12 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
   panel.add(divider());
 
   // --- Burn severity legend ---
-  panel.add(ui.Label('Burn Severity (dATBI, Otsu adaptive)',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
+  panel.add(ui.Label('Burn Severity (Landsat dATBI)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
+  panel.add(ui.Label(
+    'Areas where post-fire satellite reflectance changed significantly ' +
+    'relative to the pre-fire baseline, indicating vegetation loss from burning.',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
   panel.add(ui.Thumbnail({
     image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
                .visualize({min: 0, max: 1, palette: PALETTE_SEVERITY}),
@@ -479,10 +563,10 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
   }));
   panel.add(ui.Panel([
-    ui.Label('Low (>T)',          {fontSize: '10px', margin: '2px 0'}),
-    ui.Label('Moderate (>T+0.30)',{fontSize: '10px', margin: '2px 0',
+    ui.Label('Low',      {fontSize: '10px', margin: '2px 0'}),
+    ui.Label('Moderate', {fontSize: '10px', margin: '2px 0',
       stretch: 'horizontal', textAlign: 'center'}),
-    ui.Label('High (>T+0.60)',   {fontSize: '10px', margin: '2px 0'})
+    ui.Label('High',     {fontSize: '10px', margin: '2px 0'})
   ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
 
   // Async display of computed Otsu threshold
@@ -491,14 +575,18 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
   panel.add(otsuLabel);
   otsuVal.evaluate(function(v) {
     otsuLabel.setValue('Burn threshold T: ' + (v != null ? v.toFixed(4) : 'N/A') +
-      '  (Otsu + ' + OTSU_BIAS + ' bias)');
+      '  (scene-adaptive Otsu)');
   });
 
   panel.add(divider());
 
   // --- VIIRS confidence legend (colored swatches) ---
-  panel.add(ui.Label('VIIRS Hotspot Confidence',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
+  panel.add(ui.Label('VIIRS Active Fire Hotspots (375m)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
+  panel.add(ui.Label(
+    'Each colored cell is a 375 m x 375 m area where a satellite ' +
+    'thermal anomaly consistent with an active fire was detected.',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
 
   function swatch(color, text) {
     return ui.Panel([
@@ -509,14 +597,19 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
       ui.Label(text, {fontSize: '11px', margin: '2px 0'})
     ], ui.Panel.Layout.flow('horizontal'), {margin: '1px 0'});
   }
-  panel.add(swatch(PALETTE_HOTSPOT.nominal, 'Nominal confidence'));
-  panel.add(swatch(PALETTE_HOTSPOT.high,    'High confidence'));
+  panel.add(swatch(PALETTE_HOTSPOT.nominal, 'Nominal confidence -- likely fire'));
+  panel.add(swatch(PALETTE_HOTSPOT.high,    'High confidence -- strong fire signal'));
 
   panel.add(divider());
 
   // --- SAR backscatter change legend ---
-  panel.add(ui.Label('SAR Backscatter Change (dVV)',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 4px 0'}));
+  panel.add(ui.Label('SAR Radar Change (Sentinel-1)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
+  panel.add(ui.Label(
+    'Radar signal change between July and August. Unlike optical sensors, ' +
+    'radar penetrates cloud cover. Red areas lost vegetation structure, ' +
+    'which can indicate fire damage.',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
   panel.add(ui.Thumbnail({
     image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
                .visualize({min: 0, max: 1, palette: PALETTE_SAR}),
@@ -524,13 +617,11 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
   }));
   panel.add(ui.Panel([
-    ui.Label('< -3 dB',  {fontSize: '10px', margin: '2px 0'}),
-    ui.Label('0 dB',     {fontSize: '10px', margin: '2px 0',
+    ui.Label('Loss (red)',    {fontSize: '10px', margin: '2px 0'}),
+    ui.Label('No change',    {fontSize: '10px', margin: '2px 0',
       stretch: 'horizontal', textAlign: 'center'}),
-    ui.Label('> +3 dB',  {fontSize: '10px', margin: '2px 0'})
+    ui.Label('Gain (green)', {fontSize: '10px', margin: '2px 0'})
   ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
-  panel.add(ui.Label('Negative dVV = possible surface change from fire.',
-    {fontSize: '10px', color: '#888', margin: '2px 0'}));
 
   panel.add(divider());
 
@@ -624,8 +715,8 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
 /**
  * Constructs the right statistics panel showing:
  *   - Analysis date range summary
- *   - Total VIIRS hotspot count
- *   - Hotspot breakdown by Kalimantan province
+ *   - Total FIRMS fire pixel count
+ *   - Fire pixel breakdown by Kalimantan province
  *   - Estimated burned area (ha) per severity class
  *   - Total estimated burned area
  *   - SAR supplementary note
@@ -634,13 +725,13 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
  * .evaluate() callbacks, identical to the pattern used in the AGB/canopy
  * height script for regression metrics.
  *
- * @param {ee.FeatureCollection} hotspots   - VIIRS fire detections
+ * @param {Object}               viirs      - {totalCount, provinceCount, ...} from loadVIIRS()
  * @param {ee.FeatureCollection} provinces  - Kalimantan province polygons
  * @param {Object}               burnAreas  - {lowHa, modHa, highHa} ee.Numbers
  * @param {ee.Number}            otsuVal    - Computed Otsu threshold
  * @returns {ui.Panel} Constructed right panel
  */
-function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
+function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   var panel = ui.Panel({
     layout: ui.Panel.Layout.flow('vertical'),
     style : {width: '300px', padding: '12px', backgroundColor: 'white'}
@@ -649,7 +740,7 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
   // --- Header ---
   panel.add(ui.Label('Fire Statistics',
     {fontWeight: 'bold', fontSize: '17px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label('Kalimantan -- 14-day active fire analysis',
+  panel.add(ui.Label('Kalimantan -- August 2026 rapid fire assessment',
     {fontSize: '11px', color: '#666', margin: '0 0 4px 0'}));
   panel.add(divider());
 
@@ -658,25 +749,28 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
     {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0'}));
   panel.add(ui.Label('Post-fire : ' + START_DATE + ' to ' + END_DATE,
     {fontSize: '11px', margin: '1px 0'}));
-  panel.add(ui.Label('Pre-fire  : ' + PRE_FIRE_START + ' to ' + PRE_FIRE_END,
+  panel.add(ui.Label('Pre-fire reference: ' + PRE_FIRE_START + ' to ' + PRE_FIRE_END,
     {fontSize: '11px', margin: '1px 0'}));
-  panel.add(ui.Label('VIIRS confidence: nominal + high only',
-    {fontSize: '11px', color: '#666', margin: '1px 0'}));
   panel.add(divider());
 
-  // --- VIIRS total hotspot count ---
-  panel.add(ui.Label('VIIRS Active Fire Detections',
-    {fontWeight: 'bold', fontSize: '14px', margin: '4px 0 4px 0', color: '#222'}));
+  // --- VIIRS total fire pixel count ---
+  panel.add(ui.Label('Active Fire Detections (VIIRS 375m)',
+    {fontWeight: 'bold', fontSize: '14px', margin: '4px 0 2px 0', color: '#222'}));
+  panel.add(ui.Label(
+    'Counted from NASA VIIRS satellite. Each fire pixel represents a ' +
+    '375 m x 375 m ground area (about 14 hectares) where an active fire ' +
+    'thermal signal was detected. Nominal and high confidence only.',
+    {fontSize: '10px', color: '#555', margin: '0 0 6px 0'}));
 
-  var totalLabel = ui.Label('Total hotspots: computing...',
+  var totalLabel = ui.Label('Total fire pixels: computing...',
     {fontSize: '13px', margin: '2px 0', fontWeight: 'bold', color: '#e74c3c'});
   panel.add(totalLabel);
-  hotspots.size().evaluate(function(n) {
-    totalLabel.setValue('Total hotspots: ' + (n != null ? n.toLocaleString() : '0'));
+  viirs.totalCount.evaluate(function(n) {
+    totalLabel.setValue('Total fire pixels: ' + (n != null ? n.toLocaleString() : '0'));
   });
 
-  // --- Hotspot count by province ---
-  panel.add(ui.Label('Breakdown by Province:',
+  // --- Fire pixel count by province ---
+  panel.add(ui.Label('By Province:',
     {fontWeight: 'bold', fontSize: '12px', margin: '6px 0 2px 0'}));
 
   KALIMANTAN_ADM1.forEach(function(name) {
@@ -689,32 +783,35 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
       .filter(ee.Filter.eq('ADM1_NAME', name))
       .first()
       .geometry();
-    hotspots.filterBounds(provGeom).size().evaluate(function(n) {
-      lbl.setValue(shortName + ': ' + (n != null ? n.toLocaleString() : '0') + ' hotspots');
+    viirs.provinceCount(provGeom).evaluate(function(n) {
+      lbl.setValue(shortName + ': ' + (n != null ? n.toLocaleString() : '0') + ' fire pixels');
     });
   });
 
   panel.add(divider());
 
   // --- Burn scar area by severity ---
-  panel.add(ui.Label('Estimated Burn Scar Area',
-    {fontWeight: 'bold', fontSize: '14px', margin: '4px 0 4px 0', color: '#222'}));
-  panel.add(ui.Label('Landsat 8/9 dATBI  |  Waleed & Bilal (2026) Otsu threshold',
-    {fontSize: '10px', color: '#666', margin: '0 0 2px 0'}));
+  panel.add(ui.Label('Estimated Burned Area (Landsat)',
+    {fontWeight: 'bold', fontSize: '14px', margin: '4px 0 2px 0', color: '#222'}));
+  panel.add(ui.Label(
+    'Mapped from Landsat 8/9 satellite imagery by comparing vegetation ' +
+    'reflectance before and after the fire. Areas covered by clouds are ' +
+    'not mapped and will appear as gaps.',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
 
   // Show the computed Otsu threshold value asynchronously
-  var otsuStatLabel = ui.Label('Burn onset threshold T: computing...',
-    {fontSize: '10px', color: '#888', margin: '0 0 6px 0', fontFamily: 'monospace'});
+  var otsuStatLabel = ui.Label('Detection threshold: computing...',
+    {fontSize: '10px', color: '#888', margin: '0 0 6px 0'});
   panel.add(otsuStatLabel);
   otsuVal.evaluate(function(v) {
-    otsuStatLabel.setValue('Burn onset threshold T = ' + (v != null ? v.toFixed(4) : 'N/A'));
+    otsuStatLabel.setValue('Scene-adaptive threshold T = ' + (v != null ? v.toFixed(4) : 'N/A'));
   });
 
-  var lowLabel  = ui.Label('Low  severity  (T to T+0.30): computing...',
+  var lowLabel  = ui.Label('Low severity: computing...',
     {fontSize: '12px', margin: '2px 0', color: '#e67e22'});
-  var modLabel  = ui.Label('Moderate (T+0.30 to T+0.60): computing...',
+  var modLabel  = ui.Label('Moderate severity: computing...',
     {fontSize: '12px', margin: '2px 0', color: '#e74c3c'});
-  var highLabel = ui.Label('High     (> T+0.60): computing...',
+  var highLabel = ui.Label('High severity: computing...',
     {fontSize: '12px', margin: '2px 0', color: '#922b21'});
   var totLabel  = ui.Label('Total burned area: computing...',
     {fontSize: '13px', margin: '6px 0 2px 0', fontWeight: 'bold', color: '#c0392b'});
@@ -725,13 +822,13 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
   panel.add(totLabel);
 
   burnAreas.lowHa.evaluate(function(v) {
-    lowLabel.setValue('Low  severity  (T to T+0.30): ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
+    lowLabel.setValue('Low severity (partial burn): ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
   });
   burnAreas.modHa.evaluate(function(v) {
-    modLabel.setValue('Moderate (T+0.30 to T+0.60): ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
+    modLabel.setValue('Moderate severity: ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
   });
   burnAreas.highHa.evaluate(function(v) {
-    highLabel.setValue('High     (> T+0.60): ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
+    highLabel.setValue('High severity (intense burn): ' + (v != null ? Math.round(v).toLocaleString() : '0') + ' ha');
   });
 
   burnAreas.lowHa.add(burnAreas.modHa).add(burnAreas.highHa).evaluate(function(v) {
@@ -739,42 +836,81 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
   });
 
   panel.add(ui.Label(
-    'Scale: 30 m pixels  |  All dATBI >= T pixels included.',
-    {fontSize: '10px', color: '#888', margin: '4px 0'}
+    'Note: cloud-covered areas are excluded. Actual burned extent may be larger.',
+    {fontSize: '10px', color: '#c0392b', margin: '4px 0'}
   ));
 
   panel.add(divider());
 
   // --- SAR note ---
-  panel.add(ui.Label('Sentinel-1 SAR (supplementary)',
+  panel.add(ui.Label('Radar Imagery (Sentinel-1 SAR)',
     {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0'}));
   panel.add(ui.Label(
-    'VV backscatter change (post - pre, dB) is shown as a cloud-penetrating ' +
-    'indicator layer. Negative dVV (red) may indicate fire-related surface ' +
-    'alteration. Cross-reference with dATBI for confirmation. ' +
-    'Ref: Siegert (2000), IW descending orbit, mean composite.',
+    'Radar signals pass through clouds, providing fire-related information ' +
+    'where optical satellites cannot. A significant drop in radar signal ' +
+    '(shown in red) after the fire period may indicate loss of forest canopy ' +
+    'structure. Use this layer to look for fire signals in cloud-covered areas. ' +
+    'Cross-reference with the burn severity layer for confirmation.',
     {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
   ));
 
   panel.add(divider());
 
-  // --- Methodology note ---
-  panel.add(ui.Label('Methodology',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
+  // --- Limitations ---
+  panel.add(ui.Label('Rapid Mapping Limitations',
+    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0', color: '#922b21'}));
   panel.add(ui.Label(
-    'ATBI = ((NIR-SWIR2)/(NIR+SWIR2)) * (SWIR2/NIR)',
-    {fontSize: '10px', color: '#444', margin: '1px 0', fontFamily: 'monospace'}
+    'This is a near-real-time rapid mapping product, not a validated fire ' +
+    'damage assessment. Key limitations to be aware of:',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
   ));
   panel.add(ui.Label(
-    'dATBI = ATBIpre - ATBIpost  (positive = burned)',
-    {fontSize: '10px', color: '#444', margin: '1px 0', fontFamily: 'monospace'}
+    '1. Cloud gaps: Kalimantan in August has persistent cloud cover. ' +
+    'Burned areas under clouds are missed entirely.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
-    'Landsat 8/9 C2 L2: SR_B5 (NIR 865nm), SR_B7 (SWIR2 2200nm). ' +
-    'Cloud mask: QA_PIXEL bits 3+4. Combined ~8-day revisit. ' +
-    'Otsu bias: +' + OTSU_BIAS + ', floor: ' + OTSU_MIN + '. ' +
-    'Refs: Waleed & Bilal (2026); Kurbanov et al. (2022).',
-    {fontSize: '10px', color: '#888', margin: '2px 0'}
+    '2. Timing lag: VIIRS fire data and Landsat imagery each have a 1 to 2 day ' +
+    'ingestion delay. Very recent fires may not yet appear.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+  panel.add(ui.Label(
+    '3. Resolution: each mapped burn pixel covers 30 m x 30 m (0.09 ha). ' +
+    'Small isolated fires below this size are not resolved.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+  panel.add(ui.Label(
+    '4. False positives: bare agricultural land and recently cleared areas ' +
+    'can produce similar spectral signals to burn scars.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+
+  panel.add(divider());
+
+  // --- Future improvements ---
+  panel.add(ui.Label('Potential Improvements',
+    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0', color: '#1a5276'}));
+  panel.add(ui.Label(
+    '1. Peatland overlay: flagging burn scars that fall on peat soils ' +
+    'would highlight areas with the greatest carbon release and longest ' +
+    'recovery times.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+  panel.add(ui.Label(
+    '2. SAR-optical fusion: combining radar and optical burn signals ' +
+    'would fill cloud gaps and reduce false positives.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+  panel.add(ui.Label(
+    '3. Carbon emission estimate: combining mapped burn area with the ' +
+    'companion mangrove biomass analysis would allow a first-order ' +
+    'estimate of CO2 released.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
+  ));
+  panel.add(ui.Label(
+    '4. Time-series monitoring: tracking VIIRS fire counts day by day ' +
+    'through the dry season would show how the event evolved over time.',
+    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
 
   return panel;
@@ -787,12 +923,8 @@ function buildRightPanel(hotspots, provinces, burnAreas, otsuVal) {
 // --- Province boundaries ---
 var provinces = loadProvinces();
 
-// --- VIIRS hotspots ---
-var hotspots = loadVIIRS(aoi, START_DATE, END_DATE);
-
-// Separate by confidence for styled visualization
-var hotspotsNominal = hotspots.filter(ee.Filter.eq('confidence', 'n'));
-var hotspotsHigh    = hotspots.filter(ee.Filter.eq('confidence', 'h'));
+// --- VIIRS NRT active fire (375m raster) ---
+var viirs = loadVIIRS(aoi, START_DATE, END_DATE);
 
 // --- Landsat 8+9 composites ---
 var lsPre  = getLandsatComposite(aoi, PRE_FIRE_START, PRE_FIRE_END);
@@ -803,13 +935,8 @@ var atbiPre  = computeATBI(lsPre);
 var atbiPost = computeATBI(lsPost);
 var datbi    = computeDATBI(atbiPre, atbiPost);
 
-print('dATBI min/max:', datbi.reduceRegion({
-  reducer: ee.Reducer.minMax(), geometry: aoi, scale: 500, maxPixels: 1e9
-}));
-
 // --- Adaptive Otsu threshold ---
 var otsuVal = otsuThreshold(datbi, aoi);
-print('Adaptive Otsu threshold T:', otsuVal);
 
 // --- Burn severity ---
 var burnSeverity = classifyBurnSeverity(datbi, otsuVal);
@@ -869,16 +996,18 @@ var severityLayer = ui.Map.Layer(
 );
 Map.layers().add(severityLayer);
 
-// VIIRS hotspots -- nominal confidence
+// VIIRS 375m hotspots -- nominal confidence (confidence == 1)
 Map.addLayer(
-  hotspotsNominal.style({color: PALETTE_HOTSPOT.nominal, pointSize: 3}),
-  {}, 'VIIRS Hotspots -- Nominal', true
+  viirs.nominal,
+  {min: 1, max: 1, palette: [PALETTE_HOTSPOT.nominal]},
+  'VIIRS Hotspots -- Nominal (conf=1)', true
 );
 
-// VIIRS hotspots -- high confidence (larger dot, more saturated)
+// VIIRS 375m hotspots -- high confidence (confidence == 2)
 Map.addLayer(
-  hotspotsHigh.style({color: PALETTE_HOTSPOT.high, pointSize: 4}),
-  {}, 'VIIRS Hotspots -- High Confidence', true
+  viirs.high,
+  {min: 2, max: 2, palette: [PALETTE_HOTSPOT.high]},
+  'VIIRS Hotspots -- High Confidence (conf=2)', true
 );
 
 // SAR backscatter change dVV (cloud-penetrating supplementary layer)
@@ -895,7 +1024,7 @@ Map.layers().add(sarLayer);
 
 // Left panel must be built AFTER all Map.addLayer() calls
 var leftPanel  = buildLeftPanel(datbi, burnSeverity, sar.change, severityLayer, sarLayer, otsuVal);
-var rightPanel = buildRightPanel(hotspots, provinces, burnAreas, otsuVal);
+var rightPanel = buildRightPanel(viirs, provinces, burnAreas, otsuVal);
 
 ui.root.insert(0, leftPanel);
 ui.root.add(rightPanel);
@@ -922,12 +1051,11 @@ ui.root.add(rightPanel);
  *    Print 'dATBI min/max' and the Otsu T value to verify plausibility.
  *    The OTSU_BIAS and OTSU_MIN constants provide conservative fallbacks.
  *
- * 3. VIIRS confidence encoding
- *    The FIRMS FeatureCollection confidence field encoding ('l', 'n', 'h')
- *    is specific to VIIRS 375m data. If your FIRMS dataset version stores
- *    confidence as integers (0-100), update the loadVIIRS() filter to use
- *    ee.Filter.gte('confidence', 30) for nominal-equivalent filtering.
- *    Check the first few features with: print(hotspots.first()).
+ * 3. VIIRS NRT collection availability
+ *    NASA/LANCE/SNPP_VIIRS/C2 is NRT (near-real-time) data with a ~6-24h
+ *    ingestion lag. Standard science-quality VIIRS fire data (VNP14IMG)
+ *    is available with a longer delay but with improved geolocation and
+ *    calibration. For retrospective analysis, prefer VNP14IMG over NRT.
  *
  * 4. SAR orbit gaps
  *    Sentinel-1 descending orbit coverage over Kalimantan is not daily.
@@ -988,9 +1116,10 @@ ui.root.add(rightPanel);
  * GEE-SPECIFIC CAVEATS
  * ============================================================================
  *
- * - The FIRMS FeatureCollection is updated with a ~24h lag relative to
- *   real-time satellite overpasses. For truly near-real-time monitoring,
- *   use the NASA FIRMS Web Map Service or the LANCE NRT FIRMS API directly.
+ * - NASA/LANCE/SNPP_VIIRS/C2 is the Suomi-NPP VIIRS NRT active fire product
+ *   at 375m resolution, updated with a ~6-24h lag. It is distinct from the
+ *   MODIS 'FIRMS' ImageCollection (1km). The Mask band encodes fire confidence:
+ *   7 = nominal, 8-9 = high. Non-fire pixels (Mask 0, 3, 5) are masked out.
  *
  * - The Otsu histogram is computed at 90 m scale to avoid memory limits.
  *   If the histogram is empty (all NaN), lower L_CLOUD_MAX or widen the
