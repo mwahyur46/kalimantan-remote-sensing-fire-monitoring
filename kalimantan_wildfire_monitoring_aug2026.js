@@ -795,8 +795,10 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {fontWeight: 'bold', fontSize: '14px', margin: '4px 0 2px 0', color: '#222'}));
   panel.add(ui.Label(
     'Mapped from Landsat 8/9 satellite imagery by comparing vegetation ' +
-    'reflectance before and after the fire. Areas covered by clouds are ' +
-    'not mapped and will appear as gaps.',
+    'reflectance before and after the fire using the ATBI burn index ' +
+    '(Waleed & Bilal, 2026), which outperforms standard indices in 13 of ' +
+    '15 wildfire test events globally. Areas covered by clouds are not ' +
+    'mapped and will appear as gaps.',
     {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
 
   // Show the computed Otsu threshold value asynchronously
@@ -849,7 +851,8 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     'Radar signals pass through clouds, providing fire-related information ' +
     'where optical satellites cannot. A significant drop in radar signal ' +
     '(shown in red) after the fire period may indicate loss of forest canopy ' +
-    'structure. Use this layer to look for fire signals in cloud-covered areas. ' +
+    'structure -- a technique demonstrated for Kalimantan fires by Siegert (2000). ' +
+    'Use this layer to look for fire signals in cloud-covered areas. ' +
     'Cross-reference with the burn severity layer for confirmation.',
     {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
   ));
@@ -912,6 +915,43 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     'through the dry season would show how the event evolved over time.',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
+
+  panel.add(divider());
+
+  // --- Data & Methods ---
+  panel.add(ui.Label('Data Sources',
+    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0'}));
+  [
+    'VIIRS NRT: NASA/LANCE/SNPP_VIIRS/C2 (375m)',
+    'Landsat 8/9: USGS Collection 2 Level-2 SR (30m)',
+    'Sentinel-1: ESA Copernicus GRD IW (10m)'
+  ].forEach(function(s) {
+    panel.add(ui.Label(s, {fontSize: '10px', color: '#444', margin: '1px 0 1px 4px'}));
+  });
+
+  panel.add(ui.Label('Key References',
+    {fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px 0'}));
+  [
+    {text: 'Waleed & Bilal (2026). BAM: physics-informed burned area mapping.',
+     doi:  'doi.org/10.1016/j.jag.2026.105517'},
+    {text: 'Giglio et al. (2025). NASA VIIRS burned area product validation.',
+     doi:  'doi.org/10.1016/j.rse.2025.115006'},
+    {text: 'Kurbanov et al. (2022). Remote sensing of forest burn severity: a review.',
+     doi:  'doi.org/10.3390/rs14194714'},
+    {text: 'Pinto et al. (2021). High-resolution burned area monitoring with Sentinel-2 and VIIRS.',
+     doi:  'doi.org/10.3390/rs13091608'},
+    {text: 'Afira (2022). Multi-temporal burn detection, Indonesia (Sentinel-2).',
+     doi:  'doi.org/10.1016/j.aej.2021.06.064'},
+    {text: 'Urbanski (2018). VIIRS rapid response burned area algorithm.',
+     doi:  'International Journal of Wildland Fire'},
+    {text: 'Siegert (2000). ERS-2 SAR fire mapping, East Kalimantan.',
+     doi:  'Remote Sensing of Environment, vol. 72'}
+  ].forEach(function(ref) {
+    panel.add(ui.Label(ref.text,
+      {fontSize: '10px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
+    panel.add(ui.Label(ref.doi,
+      {fontSize: '9px', color: '#888', margin: '0 0 0 4px', fontFamily: 'monospace'}));
+  });
 
   return panel;
 }
