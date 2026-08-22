@@ -141,23 +141,25 @@ The following layers are available in both scripts (desktop via checkboxes, mobi
 
 ## References
 
-- Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. *International Journal of Applied Earth Observation and Geoinformation, 153*, 105517. https://doi.org/10.1016/j.jag.2026.105517
+- Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). *Ecological Informatics, 69*, 101677. https://doi.org/10.1016/j.ecoinf.2022.101677
+
+- Franceschini, G., Khan, A., Moretti, L., Nyabuti, K., Asif, M., Bezuidenhoudt, E., & Morteo, K. (2025). The Global Administrative Unit Layers (GAUL) 2024. Technical guidelines. Rome, FAO. https://doi.org/10.4060/cd4262en
 
 - Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. *Remote Sensing of Environment, 331*, 115006. https://doi.org/10.1016/j.rse.2025.115006
 
+- Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World's Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands. Global Peatlands Initiative, United Nations Environment Programme, Nairobi. https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/
+
 - Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. *Alexandria Engineering Journal, 61*(2), 1551-1561. https://doi.org/10.1016/j.aej.2021.06.064
-
-- Pinto, M. M., Trigo, R. M., Trigo, I. F., & DaCamara, C. C. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing, 13*(9), 1608. https://doi.org/10.3390/rs13091608
-
-- Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). *Ecological Informatics, 69*, 101677. https://doi.org/10.1016/j.ecoinf.2022.101677
 
 - Kurbanov, E., Vorobev, O., Lezhnin, S., Sha, J., Wang, J., Li, X., Cole, J., Dergunov, D., & Wang, Y. (2022). Remote sensing of forest burnt area, burn severity, and post-fire recovery: A review. *Remote Sensing, 14*(19), 4714. https://doi.org/10.3390/rs14194714
 
-- Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. *Remote Sensing of Environment, 219*, 271-283. https://doi.org/10.1016/j.rse.2018.10.007
+- Pinto, M. M., Trigo, R. M., Trigo, I. F., & DaCamara, C. C. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing, 13*(9), 1608. https://doi.org/10.3390/rs13091608
 
 - Siegert, F., & Hoffmann, A. A. (2000). The 1998 forest fires in East Kalimantan (Indonesia). *Remote Sensing of Environment, 72*(1), 64-77. https://doi.org/10.1016/s0034-4257(99)00092-9
 
-- Franceschini, G., et al. (2025). FAO GAUL 2024: Global Administrative Unit Layers. FAO. https://doi.org/10.4060/cd4262en
+- Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. *Remote Sensing of Environment, 219*, 271-283. https://doi.org/10.1016/j.rse.2018.10.007
+
+- Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. *International Journal of Applied Earth Observation and Geoinformation, 153*, 105517. https://doi.org/10.1016/j.jag.2026.105517
 
 ---
 

@@ -707,8 +707,12 @@ function buildRefsTab() {
   [
     {text: 'Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). Ecological Informatics, 69, 101677.',
      doi:  'https://doi.org/10.1016/j.ecoinf.2022.101677'},
+    {text: 'Franceschini, G., Khan, A., Moretti, L., Nyabuti, K., Asif, M., Bezuidenhoudt, E., & Morteo, K. (2025). The Global Administrative Unit Layers (GAUL) 2024. Technical guidelines. Rome, FAO.',
+     doi:  'https://doi.org/10.4060/cd4262en'},
     {text: 'Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. Remote Sensing of Environment, 331, 115006.',
      doi:  'https://doi.org/10.1016/j.rse.2025.115006'},
+    {text: 'Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World\'s Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands, Global Peatlands Initiative, United Nations Environment Programme, Nairobi.',
+     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'},
     {text: 'Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. Alexandria Engineering Journal, 61(2), 1551-1561.',
      doi:  'https://doi.org/10.1016/j.aej.2021.06.064'},
     {text: 'Kurbanov, E., Vorobev, O., Lezhnin, S., Sha, J., Wang, J., Li, X., Cole, J., Dergunov, D., & Wang, Y. (2022). Remote Sensing of forest burnt area, burn Severity, and Post-Fire Recovery: A review. Remote Sensing, 14(19), 4714.',
@@ -720,11 +724,7 @@ function buildRefsTab() {
     {text: 'Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. Remote Sensing of Environment, 219, 271-283.',
      doi:  'https://doi.org/10.1016/j.rse.2018.10.007'},
     {text: 'Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. International Journal of Applied Earth Observation and Geoinformation, 153, 105517.',
-     doi:  'https://doi.org/10.1016/j.jag.2026.105517'},
-    {text: 'Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World\'s Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands, Global Peatlands Initiative, United Nations Environment Programme, Nairobi.',
-     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'},
-    {text: 'Franceschini, G., Khan, A., Moretti, L., Nyabuti, K., Asif, M., Bezuidenhoudt, E., & Morteo, K. (2025). The Global Administrative Unit Layers (GAUL) 2024. Technical guidelines. Rome, FAO.',
-     doi:  'https://doi.org/10.4060/cd4262en'}
+     doi:  'https://doi.org/10.1016/j.jag.2026.105517'}
   ].forEach(function(ref) {
     panel.add(ui.Label(ref.text,
       {fontSize: '9px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
