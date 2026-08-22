@@ -72,6 +72,7 @@ var PALETTE_SEVERITY = ['#ffffb2', '#fd8d3c', '#e31a1c'];  // low / moderate / h
 var PALETTE_HOTSPOT  = {nominal: '#f7dc6f', high: '#e74c3c'};
 var PALETTE_SAR      = ['#d73027', '#f7f7f7', '#1a9641'];   // decrease / stable / increase
 var PALETTE_DATBI    = ['#4575b4', '#f7f7f7', '#d73027'];   // negative / zero / positive
+var PALETTE_PEAT     = ['#c7e9c0', '#238b45'];              // mosaic / peat-dominated
 
 // ============================================================================
 // 2. MAP INITIALIZATION
@@ -503,15 +504,19 @@ function divider() {
  * Must be called AFTER all Map.addLayer() calls so that the checkbox loop
  * reflects the correct layer list.
  *
- * @param {ee.Image}     datbi         - dATBI image (for inspector)
- * @param {ee.Image}     burnSeverity  - Classified severity image (for inspector)
- * @param {ee.Image}     sarChange     - SAR dVV/dVH change image (for inspector)
- * @param {ui.Map.Layer} severityLayer - Reference to severity map layer object
- * @param {ui.Map.Layer} sarLayer      - Reference to SAR change map layer object
- * @param {ee.Number}    otsuVal       - Computed Otsu threshold (for display)
+ * @param {ee.Image}     datbi           - dATBI image (for inspector)
+ * @param {ee.Image}     burnSeverity    - Classified severity image (for inspector)
+ * @param {ee.Image}     sarChange       - SAR dVV/dVH change image (for inspector)
+ * @param {ui.Map.Layer} severityLayer   - Reference to severity map layer object
+ * @param {ui.Map.Layer} sarLayer        - Reference to SAR change map layer object
+ * @param {ee.Number}    otsuVal         - Computed Otsu threshold (for display)
+ * @param {ee.Image}     peatMask        - Binary peatland mask (1 = peat present)
+ * @param {ee.Image}     burnSeverityRaw - Unmasked severity image (before peat filter)
+ * @param {ee.Image}     datbiRaw        - Unmasked dATBI image (before peat filter)
  * @returns {ui.Panel} Constructed left panel
  */
-function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer, otsuVal) {
+function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer, otsuVal,
+                        peatMask, burnSeverityRaw, datbiRaw) {
   var panel = ui.Panel({
     layout: ui.Panel.Layout.flow('vertical'),
     style : {width: '300px', padding: '12px', backgroundColor: 'white'}
@@ -596,6 +601,48 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     'cameras, radar passes through clouds. Red = signal loss, suggesting forest ' +
     'canopy was lost. Speckle-filtered to reduce noise.'
   );
+
+  panel.add(ui.Label('Peatland Data',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(9,
+    'Global Peatland Map 2.0 (1 km). Light green = peat in soil mosaic; ' +
+    'dark green = peat-dominated. Source: Global Peatlands Initiative / COP26.'
+  );
+
+  panel.add(divider());
+
+  // --- Peatland mask toggle ---
+  panel.add(ui.Label('Peatland Mask',
+    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 2px 0'}));
+  panel.add(ui.Label(
+    'When enabled, burn severity and dATBI layers are restricted to peatland ' +
+    'areas only (Global Peatland Map 2.0, 1 km). Peatland fires have the ' +
+    'greatest carbon emission and recovery implications (Afira 2022).',
+    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
+  ));
+  panel.add(ui.Label(
+    'Note: the peatland layer is at 1 km resolution. Burn layer edges within ' +
+    'peat zones may show blocky 1 km boundaries as a result.',
+    {fontSize: '10px', color: '#888', margin: '0 0 6px 0'}
+  ));
+
+  var peatToggle = ui.Checkbox({
+    label: 'Restrict burn layers to peatland areas',
+    value: false,
+    style: {fontSize: '12px', fontWeight: 'bold', margin: '2px 0 4px 0'}
+  });
+  panel.add(peatToggle);
+
+  peatToggle.onChange(function(checked) {
+    if (checked) {
+      severityLayer.setEeObject(burnSeverityRaw.updateMask(peatMask));
+      // dATBI diagnostic layer is index 4; update via Map.layers()
+      Map.layers().get(4).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)).updateMask(peatMask));
+    } else {
+      severityLayer.setEeObject(burnSeverityRaw);
+      Map.layers().get(4).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)));
+    }
+  });
 
   panel.add(divider());
 
@@ -953,24 +1000,19 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   panel.add(ui.Label('Potential Improvements',
     {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0', color: '#1a5276'}));
   panel.add(ui.Label(
-    '1. Peatland overlay: flagging burn scars that fall on peat soils ' +
-    'would highlight areas with the greatest carbon release and longest ' +
-    'recovery times.',
+    '1. SAR-optical fusion: combining radar and optical burn signals ' +
+    'would fill cloud gaps and reduce false positives (partially addressed ' +
+    'by the SAR layer).',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
-    '2. SAR-optical fusion: combining radar and optical burn signals ' +
-    'would fill cloud gaps and reduce false positives.',
-    {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
-  ));
-  panel.add(ui.Label(
-    '3. Carbon emission estimate: combining mapped burn area with the ' +
+    '2. Carbon emission estimate: combining mapped burn area with the ' +
     'companion mangrove biomass analysis would allow a first-order ' +
     'estimate of CO₂ released.',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
-    '4. Time-series monitoring: tracking VIIRS fire counts day by day ' +
+    '3. Time-series monitoring: tracking VIIRS fire counts day by day ' +
     'through the dry season would show how the event evolved over time.',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
@@ -984,7 +1026,8 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     'VIIRS NRT: NASA/LANCE/SNPP_VIIRS/C2 (375m)',
     'Landsat 8/9: USGS Collection 2 Level-2 SR (30m)',
     'Sentinel-1: ESA Copernicus GRD IW (10m)',
-    'Boundaries: FAO GAUL 2015 Level 1'
+    'Boundaries: FAO GAUL 2015 Level 1',
+    'Peatlands: Global Peatland Map 2.0 -- Global Peatlands Initiative / COP26 (1 km)'
   ].forEach(function(s) {
     panel.add(ui.Label(s, {fontSize: '10px', color: '#444', margin: '1px 0 1px 4px'}));
   });
@@ -1022,6 +1065,14 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
 
 // --- Province boundaries ---
 var provinces = loadProvinces();
+
+// --- Global Peatland Map 2.0 (1 km resolution) ---
+// Pixel values: 1 = peat-dominated, 2 = peat in soil mosaic (Global Peatlands Initiative / COP26)
+// Clipped to Kalimantan bounding box; unmasked so gte(1) picks up both classes.
+var peatRaw  = ee.Image('projects/sat-io/open-datasets/ML-GLOBAL-PEATLAND-EXTENT')
+                 .clip(aoi)
+                 .unmask(0);
+var peatMask = peatRaw.gte(1);   // binary: 1 where any peat class present
 
 // --- VIIRS NRT active fire (375m raster) ---
 var viirs = loadVIIRS(aoi, START_DATE, END_DATE);
@@ -1124,12 +1175,23 @@ var sarLayer = ui.Map.Layer(
 );
 Map.layers().add(sarLayer);
 
+// Peatland extent (Global Peatland Map 2.0, 1 km)
+// Shown as a semi-transparent fill so users can visually identify peat areas.
+// Value 1 = peat-dominated (dark green), value 2 = peat in soil mosaic (light green).
+var peatLayer = ui.Map.Layer(
+  peatRaw.updateMask(peatMask)
+         .visualize({min: 1, max: 2, palette: PALETTE_PEAT, opacity: 0.35}),
+  {}, 'Peatland Extent (Global Peatland Map 2.0)', false
+);
+Map.layers().add(peatLayer);
+
 // ============================================================================
 // BUILD AND MOUNT UI PANELS
 // ============================================================================
 
 // Left panel must be built AFTER all Map.addLayer() calls
-var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, sarLayer, otsuVal);
+var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, sarLayer, otsuVal,
+                                peatMask, burnSeverity, datbi);
 var rightPanel = buildRightPanel(viirs, provinces, burnAreas, otsuVal);
 
 ui.root.insert(0, leftPanel);
@@ -1199,10 +1261,11 @@ ui.root.add(rightPanel);
  *    from dATBI+Otsu, train GTB with GLCM texture features and FABDEM terrain
  *    variables, and refine the burn mask. Improves F1 from ~0.85 to ~0.99.
  *
- * 3. Peatland mask overlay
- *    Overlay the CIFOR/WRI global peatland layer (or Indonesian MoEF peat
- *    data) to flag hotspots and burn scars occurring on peat, which have
- *    disproportionate carbon emission implications (Afira 2022).
+ * 3. Peatland mask overlay (implemented)
+ *    Global Peatland Map 2.0 (projects/sat-io/open-datasets/ML-GLOBAL-PEATLAND-EXTENT)
+ *    is loaded and exposed as a left-panel checkbox toggle. When enabled, burn
+ *    severity and dATBI layers are restricted to peatland extent. The peatland
+ *    fill layer (layer index 9) is also available as a separate map layer toggle.
  *
  * 4. NBR from Sentinel-1 (SAR-NBR)
  *    Compute a SAR-based burn index (e.g., VH/VV ratio change) following
