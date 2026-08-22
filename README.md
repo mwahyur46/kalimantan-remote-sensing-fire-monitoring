@@ -141,19 +141,23 @@ The following layers are available in both scripts (desktop via checkboxes, mobi
 
 ## References
 
-- Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. *[Journal]*. -- ATBI index, dATBI, adaptive Otsu thresholding, BAM framework.
+- Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. *International Journal of Applied Earth Observation and Geoinformation, 153*, 105517. https://doi.org/10.1016/j.jag.2026.105517
 
-- Giglio, L., et al. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. *[Journal]*. -- VNP64A1 product validation, VIIRS confidence band encoding, Southeast Asia BA discrepancy.
+- Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. *Remote Sensing of Environment, 331*, 115006. https://doi.org/10.1016/j.rse.2025.115006
 
-- Pinto, M. M., et al. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing of Environment*. -- S2 + VIIRS burned area methodology, GEE cloud-free compositing approach.
+- Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. *Alexandria Engineering Journal, 61*(2), 1551-1561. https://doi.org/10.1016/j.aej.2021.06.064
 
-- Afira, R. N. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). *[Journal]*. -- Multi-index burn detection, Indonesian peatland context, XGBoost classification.
+- Pinto, M. M., Trigo, R. M., Trigo, I. F., & DaCamara, C. C. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing, 13*(9), 1608. https://doi.org/10.3390/rs13091608
 
-- Kurbanov, E., et al. (2022). Remote sensing of forest burnt area, burn severity, and post-fire recovery: A review. *Remote Sensing*. -- Systematic review of 329 RS burn severity studies (2000-2020); spectral index and sensor usage frequencies.
+- Afira, R. N. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). -- Multi-index burn detection, Indonesian peatland context, XGBoost classification.
 
-- Urbanski, S. P. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. *Remote Sensing of Environment*. -- VIIRS confidence filtering rationale, proximity-based burn scar confirmation.
+- Kurbanov, E., Vorobev, O., Lezhnin, S., Sha, J., Wang, J., Li, X., Cole, J., Dergunov, D., & Wang, Y. (2022). Remote sensing of forest burnt area, burn severity, and post-fire recovery: A review. *Remote Sensing, 14*(19), 4714. https://doi.org/10.3390/rs14194714
 
-- Siegert, F., & Ruecker, G. (2000). The 1998 forest fires in East Kalimantan (Indonesia): A quantitative evaluation using high resolution, multitemporal ERS-2 SAR images and NOAA-AVHRR hotspot data. *Remote Sensing of Environment*, 72(1), 64-77. -- SAR-based fire monitoring methodology for Kalimantan; decreased backscatter as burn indicator.
+- Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. *Remote Sensing of Environment, 219*, 271-283. https://doi.org/10.1016/j.rse.2018.10.007
+
+- Siegert, F., & Hoffmann, A. A. (2000). The 1998 forest fires in East Kalimantan (Indonesia). *Remote Sensing of Environment, 72*(1), 64-77. https://doi.org/10.1016/s0034-4257(99)00092-9
+
+- Franceschini, G., et al. (2025). FAO GAUL 2024: Global Administrative Unit Layers. FAO. https://doi.org/10.4060/cd4262en
 
 ---
 
