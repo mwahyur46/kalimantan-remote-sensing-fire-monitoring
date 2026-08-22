@@ -513,10 +513,11 @@ function divider() {
  * @param {ee.Image}     peatMask        - Binary peatland mask (1 = peat present)
  * @param {ee.Image}     burnSeverityRaw - Unmasked severity image (before peat filter)
  * @param {ee.Image}     datbiRaw        - Unmasked dATBI image (before peat filter)
+ * @param {Object}       viirsObj        - {nominal, high, ...} from loadVIIRS()
  * @returns {ui.Panel} Constructed left panel
  */
 function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer, otsuVal,
-                        peatMask, burnSeverityRaw, datbiRaw) {
+                        peatMask, burnSeverityRaw, datbiRaw, viirsObj) {
   var panel = ui.Panel({
     layout: ui.Panel.Layout.flow('vertical'),
     style : {width: '300px', padding: '12px', backgroundColor: 'white'}
@@ -570,14 +571,21 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     'bright red-orange, making them easier to spot than in the true-color view.'
   );
 
-  panel.add(ui.Label('Burn Scar Analysis',
+  panel.add(ui.Label('Peatland Data',
     {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
   layerRow(4,
+    'Global Peatland Map 2.0 (1 km). Light green = peat in soil mosaic; ' +
+    'dark green = peat-dominated. Source: Global Peatlands Initiative / COP26.'
+  );
+
+  panel.add(ui.Label('Burn Scar Analysis',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(5,
     'Diagnostic: shows only where the satellite burn signal is positive, before ' +
     'the severity threshold is applied. Yellow = weak signal; red = strong burn signal. ' +
     'Transparent areas have no burn signal (intact forest, water, or cloud shadow).'
   );
-  layerRow(5,
+  layerRow(6,
     'Fire damage intensity in three levels. Low = partial scorching; ' +
     'High = intense burn with major vegetation loss. Clouds and unburned areas ' +
     'are transparent.'
@@ -585,28 +593,21 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
 
   panel.add(ui.Label('Active Fire Detections',
     {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
-  layerRow(6,
+  layerRow(7,
     'NASA VIIRS 375m pixel with a nominal (likely) active fire signal ' +
     'detected during August 2026.'
   );
-  layerRow(7,
+  layerRow(8,
     'Active fire detection with a strong, high-confidence thermal signal -- ' +
     'the most certain fire locations.'
   );
 
   panel.add(ui.Label('Radar (Cloud-Penetrating)',
     {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
-  layerRow(8,
+  layerRow(9,
     'Sentinel-1 radar signal change between July and August. Unlike optical ' +
     'cameras, radar passes through clouds. Red = signal loss, suggesting forest ' +
     'canopy was lost. Speckle-filtered to reduce noise.'
-  );
-
-  panel.add(ui.Label('Peatland Data',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
-  layerRow(9,
-    'Global Peatland Map 2.0 (1 km). Light green = peat in soil mosaic; ' +
-    'dark green = peat-dominated. Source: Global Peatlands Initiative / COP26.'
   );
 
   panel.add(divider());
@@ -615,32 +616,39 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
   panel.add(ui.Label('Peatland Mask',
     {fontWeight: 'bold', fontSize: '13px', margin: '0 0 2px 0'}));
   panel.add(ui.Label(
-    'When enabled, burn severity and dATBI layers are restricted to peatland ' +
-    'areas only (Global Peatland Map 2.0, 1 km). Peatland fires have the ' +
-    'greatest carbon emission and recovery implications (Afira 2022).',
+    'When enabled, burn severity, dATBI, and VIIRS hotspot layers are restricted ' +
+    'to peatland areas only (Global Peatland Map 2.0, 1 km). Peatland fires carry ' +
+    'the greatest carbon emission and longest recovery implications (Afira 2022).',
     {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
   ));
   panel.add(ui.Label(
-    'Note: the peatland layer is at 1 km resolution. Burn layer edges within ' +
-    'peat zones may show blocky 1 km boundaries as a result.',
+    'Note: the peatland layer is at 1 km resolution. Burn and hotspot layer ' +
+    'edges within peat zones may show blocky 1 km boundaries as a result. ' +
+    'SAR and Landsat layers are unaffected.',
     {fontSize: '10px', color: '#888', margin: '0 0 6px 0'}
   ));
 
   var peatToggle = ui.Checkbox({
-    label: 'Restrict burn layers to peatland areas',
+    label: 'Restrict fire layers to peatland areas',
     value: false,
     style: {fontSize: '12px', fontWeight: 'bold', margin: '2px 0 4px 0'}
   });
   panel.add(peatToggle);
 
+  // Layer indices after reordering:
+  //   5 = dATBI diagnostic, 6 = burn severity (severityLayer ref),
+  //   7 = VIIRS nominal,    8 = VIIRS high confidence
   peatToggle.onChange(function(checked) {
     if (checked) {
       severityLayer.setEeObject(burnSeverityRaw.updateMask(peatMask));
-      // dATBI diagnostic layer is index 4; update via Map.layers()
-      Map.layers().get(4).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)).updateMask(peatMask));
+      Map.layers().get(5).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)).updateMask(peatMask));
+      Map.layers().get(7).setEeObject(viirsObj.nominal.updateMask(peatMask));
+      Map.layers().get(8).setEeObject(viirsObj.high.updateMask(peatMask));
     } else {
       severityLayer.setEeObject(burnSeverityRaw);
-      Map.layers().get(4).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)));
+      Map.layers().get(5).setEeObject(datbiRaw.updateMask(datbiRaw.gt(0)));
+      Map.layers().get(7).setEeObject(viirsObj.nominal);
+      Map.layers().get(8).setEeObject(viirsObj.high);
     }
   });
 
@@ -1133,7 +1141,18 @@ Map.addLayer(
   'Landsat Post-fire False Color SWIR', false
 );
 
-// dATBI continuous (diagnostic layer)
+// Peatland extent (Global Peatland Map 2.0, 1 km) -- index 4
+// Placed above Landsat base imagery but below analysis layers so it serves as
+// a contextual reference without obscuring burn products or hotspot detections.
+// Value 1 = peat-dominated (dark green), value 2 = peat in soil mosaic (light green).
+var peatLayer = ui.Map.Layer(
+  peatRaw.updateMask(peatMask)
+         .visualize({min: 1, max: 2, palette: PALETTE_PEAT, opacity: 0.35}),
+  {}, 'Peatland Extent (Global Peatland Map 2.0)', false
+);
+Map.layers().add(peatLayer);
+
+// dATBI continuous (diagnostic layer) -- index 5
 // dATBI diagnostic: mask out negative values (cloud shadow / water artefacts)
 // so only the positive burn signal is shown. Yellow-to-red palette avoids
 // the misleading blue-dominant display from cloud shadow in the pre-fire composite.
@@ -1143,7 +1162,7 @@ Map.addLayer(
   'dATBI (burn signal only)', false
 );
 
-// Burn severity -- classified (primary output)
+// Burn severity -- classified (primary output) -- index 6
 // Added via ui.Map.Layer to retain a reference for the opacity slider
 var severityLayer = ui.Map.Layer(
   burnSeverity,
@@ -1152,14 +1171,14 @@ var severityLayer = ui.Map.Layer(
 );
 Map.layers().add(severityLayer);
 
-// VIIRS 375m hotspots -- nominal confidence (confidence == 1)
+// VIIRS 375m hotspots -- nominal confidence (confidence == 1) -- index 7
 Map.addLayer(
   viirs.nominal,
   {min: 1, max: 1, palette: [PALETTE_HOTSPOT.nominal]},
   'VIIRS Hotspots -- Nominal (conf=1)', true
 );
 
-// VIIRS 375m hotspots -- high confidence (confidence == 2)
+// VIIRS 375m hotspots -- high confidence (confidence == 2) -- index 8
 Map.addLayer(
   viirs.high,
   {min: 2, max: 2, palette: [PALETTE_HOTSPOT.high]},
@@ -1168,6 +1187,7 @@ Map.addLayer(
 
 // SAR backscatter change dVV: speckle-filtered + ±3 dB range so fire-related
 // canopy loss (-1 to -3 dB) renders as visible red rather than near-white.
+// index 9
 var sarLayer = ui.Map.Layer(
   sarChangeSm.select('dVV'),
   {min: -3, max: 3, palette: PALETTE_SAR},
@@ -1175,23 +1195,13 @@ var sarLayer = ui.Map.Layer(
 );
 Map.layers().add(sarLayer);
 
-// Peatland extent (Global Peatland Map 2.0, 1 km)
-// Shown as a semi-transparent fill so users can visually identify peat areas.
-// Value 1 = peat-dominated (dark green), value 2 = peat in soil mosaic (light green).
-var peatLayer = ui.Map.Layer(
-  peatRaw.updateMask(peatMask)
-         .visualize({min: 1, max: 2, palette: PALETTE_PEAT, opacity: 0.35}),
-  {}, 'Peatland Extent (Global Peatland Map 2.0)', false
-);
-Map.layers().add(peatLayer);
-
 // ============================================================================
 // BUILD AND MOUNT UI PANELS
 // ============================================================================
 
 // Left panel must be built AFTER all Map.addLayer() calls
 var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, sarLayer, otsuVal,
-                                peatMask, burnSeverity, datbi);
+                                peatMask, burnSeverity, datbi, viirs);
 var rightPanel = buildRightPanel(viirs, provinces, burnAreas, otsuVal);
 
 ui.root.insert(0, leftPanel);
