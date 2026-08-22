@@ -48,6 +48,7 @@ var PALETTE_SEVERITY = ['#ffffb2', '#fd8d3c', '#e31a1c'];
 var PALETTE_HOTSPOT  = {nominal: '#f7dc6f', high: '#e74c3c'};
 var PALETTE_SAR      = ['#d73027', '#f7f7f7', '#1a9641'];
 var PALETTE_DATBI    = ['#4575b4', '#f7f7f7', '#d73027'];
+var PALETTE_PEAT     = ['#c7e9c0', '#238b45'];              // mosaic / peat-dominated
 
 // ============================================================================
 // 2. MAP INITIALIZATION
@@ -295,14 +296,17 @@ function legendBar(palette) {
 // ============================================================================
 /**
  * Builds the Layers tab panel with per-layer descriptions suitable for a
- * general (non-geospatial) audience, compact legends, and Otsu threshold.
+ * general (non-geospatial) audience, compact legends, Otsu threshold, and
+ * a peatland mask toggle.
  * No opacity sliders -- use the native Layers button (top-right of map).
  * Must be called AFTER all Map.addLayer() calls.
  *
- * @param {ee.Number} otsuVal - Adaptive Otsu threshold for display
+ * @param {ee.Number} otsuVal  - Adaptive Otsu threshold for display
+ * @param {ee.Image}  peatMask - Binary peatland mask (1 = peat present)
+ * @param {Object}    viirsObj - {nominal, high, ...} from loadVIIRS()
  * @returns {ui.Panel} Floating panel (initially hidden)
  */
-function buildLayersTab(otsuVal) {
+function buildLayersTab(otsuVal, peatMask, viirsObj) {
   var panel = ui.Panel({
     layout: ui.Panel.Layout.flow('vertical'),
     style: {
@@ -369,11 +373,25 @@ function buildLayersTab(otsuVal) {
   );
 
   panel.add(divider());
+  panel.add(ui.Label('Peatland Data',
+    {fontWeight: 'bold', fontSize: '11px', color: '#333', margin: '0 0 2px 0'}));
+
+  // --- Peatland Extent (index 4) ---
+  layerRow(4,
+    'Global Peatland Map 2.0 (1 km). Light green = peat in soil mosaic; ' +
+    'dark green = peat-dominated. Source: Greifswald Mire Centre / Global Peatlands Initiative.'
+  );
+  panel.add(ui.Panel([
+    swatch(PALETTE_PEAT[0], 'Peat in soil mosaic'),
+    swatch(PALETTE_PEAT[1], 'Peat-dominated')
+  ], ui.Panel.Layout.flow('vertical'), {margin: '0 0 4px 0'}));
+
+  panel.add(divider());
   panel.add(ui.Label('Burn Scar Analysis',
     {fontWeight: 'bold', fontSize: '11px', color: '#333', margin: '0 0 2px 0'}));
 
-  // --- dATBI burn signal only (index 4) ---
-  layerRow(4,
+  // --- dATBI burn signal only (index 5) ---
+  layerRow(5,
     'Diagnostic: shows only where the satellite burn signal is positive, before ' +
     'the severity threshold is applied. Yellow = weak signal; red = strong burn signal. ' +
     'Areas with no signal (water, intact forest, cloud shadow) are left transparent. ' +
@@ -386,8 +404,8 @@ function buildLayersTab(otsuVal) {
     ui.Label('Strong burn', {fontSize: '8px'})
   ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal', margin: '0 0 4px 0'}));
 
-  // --- Burn Severity (index 5) ---
-  layerRow(5,
+  // --- Burn Severity (index 6) ---
+  layerRow(6,
     'Fire damage intensity classified into three levels using the satellite-derived ' +
     'burn index. Low severity = partial scorching; high severity = intense burn with ' +
     'major vegetation loss. Clouds and unburned areas are left transparent.'
@@ -410,15 +428,15 @@ function buildLayersTab(otsuVal) {
   panel.add(ui.Label('Active Fire Detections',
     {fontWeight: 'bold', fontSize: '11px', color: '#333', margin: '0 0 2px 0'}));
 
-  // --- VIIRS Nominal (index 6) ---
-  layerRow(6,
+  // --- VIIRS Nominal (index 7) ---
+  layerRow(7,
     'NASA VIIRS satellite detected an active fire signal at this 375m pixel ' +
     'with nominal (likely) confidence. Captured during the August 2026 dry season.'
   );
   panel.add(swatch(PALETTE_HOTSPOT.nominal, 'Nominal confidence -- likely fire'));
 
-  // --- VIIRS High Confidence (index 7) ---
-  layerRow(7,
+  // --- VIIRS High Confidence (index 8) ---
+  layerRow(8,
     'Active fire detection with a strong, high-confidence thermal signal. ' +
     'These represent the most certain fire locations.'
   );
@@ -428,8 +446,8 @@ function buildLayersTab(otsuVal) {
   panel.add(ui.Label('Radar (Cloud-Penetrating)',
     {fontWeight: 'bold', fontSize: '11px', color: '#333', margin: '0 0 2px 0'}));
 
-  // --- SAR dVV (index 8) ---
-  layerRow(8,
+  // --- SAR dVV (index 9) ---
+  layerRow(9,
     'Unlike optical cameras, radar from the Sentinel-1 satellite passes through ' +
     'cloud cover. A drop in radar signal (red) between July and August suggests ' +
     'the forest canopy was lost -- a known fire indicator. Use this to look for ' +
@@ -441,6 +459,43 @@ function buildLayersTab(otsuVal) {
     ui.Label('No change',           {fontSize: '8px', stretch: 'horizontal', textAlign: 'center'}),
     ui.Label('Signal gain',         {fontSize: '8px'})
   ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
+
+  panel.add(divider());
+
+  // --- Peatland mask toggle ---
+  panel.add(ui.Label('Peatland Mask',
+    {fontWeight: 'bold', fontSize: '11px', color: '#333', margin: '0 0 2px 0'}));
+  panel.add(ui.Label(
+    'Restricts burn severity, dATBI, and VIIRS hotspot layers to peatland ' +
+    'areas only. SAR and Landsat layers are unaffected.',
+    {fontSize: '9px', color: '#555', margin: '0 0 2px 0'}
+  ));
+  panel.add(ui.Label(
+    'Note: peatland data is at 1 km -- edges may appear blocky.',
+    {fontSize: '9px', color: '#aaa', margin: '0 0 4px 0'}
+  ));
+
+  var peatToggle = ui.Checkbox({
+    label: 'Restrict fire layers to peatland areas',
+    value: false,
+    style: {fontSize: '11px', fontWeight: 'bold', margin: '0 0 4px 0'}
+  });
+  panel.add(peatToggle);
+
+  // Layer indices: 5 = dATBI, 6 = burn severity, 7 = VIIRS nominal, 8 = VIIRS high
+  peatToggle.onChange(function(checked) {
+    if (checked) {
+      Map.layers().get(5).setEeObject(datbi.updateMask(datbi.gt(0)).updateMask(peatMask));
+      Map.layers().get(6).setEeObject(burnSeverity.updateMask(peatMask));
+      Map.layers().get(7).setEeObject(viirsObj.nominal.updateMask(peatMask));
+      Map.layers().get(8).setEeObject(viirsObj.high.updateMask(peatMask));
+    } else {
+      Map.layers().get(5).setEeObject(datbi.updateMask(datbi.gt(0)));
+      Map.layers().get(6).setEeObject(burnSeverity);
+      Map.layers().get(7).setEeObject(viirsObj.nominal);
+      Map.layers().get(8).setEeObject(viirsObj.high);
+    }
+  });
 
   return panel;
 }
@@ -588,14 +643,12 @@ function buildStatsTab(viirs, provinces, burnAreas, otsuVal) {
   panel.add(ui.Label('Potential Improvements',
     {fontWeight: 'bold', fontSize: '11px', color: '#1a5276', margin: '0 0 3px 0'}));
   [
-    '1. Peatland overlay: flagging burn scars on peat soils would highlight ' +
-    'areas with the greatest carbon release and longest recovery times.',
-    '2. SAR-optical fusion: combining radar and optical burn signals would ' +
-    'fill cloud gaps and reduce false positives.',
-    '3. Carbon emission estimate: combining mapped burn area with the ' +
+    '1. SAR-optical fusion: combining radar and optical burn signals would ' +
+    'fill cloud gaps and reduce false positives (partially addressed by the SAR layer).',
+    '2. Carbon emission estimate: combining mapped burn area with the ' +
     'companion mangrove biomass analysis would allow a first-order estimate ' +
     'of CO₂ released.',
-    '4. Time-series monitoring: tracking VIIRS fire counts day by day through ' +
+    '3. Time-series monitoring: tracking VIIRS fire counts day by day through ' +
     'the dry season would show how the event evolved over time.'
   ].forEach(function(txt) {
     panel.add(ui.Label(txt, {fontSize: '9px', color: '#555', margin: '1px 0 3px 4px'}));
@@ -635,7 +688,8 @@ function buildRefsTab() {
     'VIIRS NRT: NASA/LANCE/SNPP_VIIRS/C2 (375m)',
     'Landsat 8/9: USGS Collection 2 Level-2 SR (30m)',
     'Sentinel-1: ESA Copernicus GRD IW (10m)',
-    'Boundaries: FAO GAUL 2015 Level 1'
+    'Boundaries: FAO GAUL 2015 Level 1',
+    'Peatlands: Global Peatland Map 2.0 -- Global Peatlands Initiative / COP26 (1 km)'
   ].forEach(function(s) {
     panel.add(ui.Label(s, {fontSize: '9px', color: '#444', margin: '1px 0 1px 4px'}));
   });
@@ -658,7 +712,9 @@ function buildRefsTab() {
     {text: 'Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. Remote Sensing of Environment, 219, 271-283.',
      doi:  'https://doi.org/10.1016/j.rse.2018.10.007'},
     {text: 'Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. International Journal of Applied Earth Observation and Geoinformation, 153, 105517.',
-     doi:  'https://doi.org/10.1016/j.jag.2026.105517'}
+     doi:  'https://doi.org/10.1016/j.jag.2026.105517'},
+    {text: 'Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World\'s Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands, Global Peatlands Initiative, United Nations Environment Programme, Nairobi.',
+     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'}
   ].forEach(function(ref) {
     panel.add(ui.Label(ref.text,
       {fontSize: '9px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
@@ -763,6 +819,14 @@ function buildInspectorPanel(datbi, burnSeverity, sarChange) {
 
 // --- Compute analysis products ---
 var provinces    = loadProvinces();
+
+// Global Peatland Map 2.0 (1 km resolution)
+// Pixel values: 1 = peat-dominated, 2 = peat in soil mosaic
+var peatRaw  = ee.Image('projects/sat-io/open-datasets/ML-GLOBAL-PEATLAND-EXTENT')
+                 .clip(aoi)
+                 .unmask(0);
+var peatMask = peatRaw.gte(1);
+
 var viirs        = loadVIIRS(aoi, START_DATE, END_DATE);
 var lsPre        = getLandsatComposite(aoi, PRE_FIRE_START, PRE_FIRE_END);
 var lsPost       = getLandsatComposite(aoi, START_DATE, END_DATE);
@@ -806,28 +870,36 @@ Map.addLayer(
   'Landsat Post-fire False Color SWIR', false
 );
 
-// dATBI diagnostic: mask out negative values (cloud shadow / water artefacts)
-// so only the positive burn signal is shown. Yellow-to-red palette matches
-// the severity layer visually and avoids the misleading blue-dominant display
-// that results from cloud shadow contamination in the pre-fire composite.
+// Peatland extent (Global Peatland Map 2.0, 1 km) -- index 4
+// Placed above Landsat base imagery but below analysis layers.
+Map.addLayer(
+  peatRaw.updateMask(peatMask)
+         .visualize({min: 1, max: 2, palette: PALETTE_PEAT, opacity: 0.35}),
+  {}, 'Peatland Extent (Global Peatland Map 2.0)', false
+);
+
+// dATBI diagnostic -- index 5
 Map.addLayer(
   datbi.updateMask(datbi.gt(0)),
   {min: 0, max: 0.4, palette: PALETTE_SEVERITY},
   'dATBI (burn signal only)', false
 );
 
+// Burn Severity -- index 6
 Map.addLayer(
   burnSeverity,
   {min: 1, max: 3, palette: PALETTE_SEVERITY},
   'Burn Severity (classified)', true, 0.85
 );
 
+// VIIRS Nominal -- index 7
 Map.addLayer(
   viirs.nominal,
   {min: 1, max: 1, palette: [PALETTE_HOTSPOT.nominal]},
   'VIIRS Hotspots -- Nominal (conf=1)', true
 );
 
+// VIIRS High Confidence -- index 8
 Map.addLayer(
   viirs.high,
   {min: 2, max: 2, palette: [PALETTE_HOTSPOT.high]},
@@ -835,7 +907,7 @@ Map.addLayer(
 );
 
 // SAR dVV: speckle-filtered change image, ±3 dB range so fire-related canopy
-// loss signals (-1 to -3 dB) render as clearly visible red.
+// loss signals (-1 to -3 dB) render as clearly visible red. -- index 9
 Map.addLayer(
   sarChangeSm.select('dVV'),
   {min: -3, max: 3, palette: PALETTE_SAR},
@@ -848,7 +920,7 @@ Map.addLayer(
 
 // --- Tab content panels (hidden by default, mounted to map) ---
 // Must be built AFTER addLayer calls so layer checkboxes reflect Map.layers()
-var layersTab = buildLayersTab(otsuVal);
+var layersTab = buildLayersTab(otsuVal, peatMask, viirs);
 var statsTab  = buildStatsTab(viirs, provinces, burnAreas, otsuVal);
 var refsTab   = buildRefsTab();
 

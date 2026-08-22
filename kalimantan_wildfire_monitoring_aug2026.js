@@ -1056,7 +1056,9 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {text: 'Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. Remote Sensing of Environment, 219, 271-283.',
      doi:  'https://doi.org/10.1016/j.rse.2018.10.007'},
     {text: 'Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. International Journal of Applied Earth Observation and Geoinformation, 153, 105517.',
-     doi:  'https://doi.org/10.1016/j.jag.2026.105517'}
+     doi:  'https://doi.org/10.1016/j.jag.2026.105517'},
+    {text: 'Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World\'s Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands, Global Peatlands Initiative, United Nations Environment Programme, Nairobi.',
+     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'}
   ].forEach(function(ref) {
     panel.add(ui.Label(ref.text,
       {fontSize: '10px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
