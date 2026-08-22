@@ -15,7 +15,7 @@
  *  Methodology references:
  *    Waleed & Bilal (2026)    -- ATBI, dATBI, adaptive Otsu thresholding
  *    Pinto et al. (2021)      -- S2 + VIIRS practical burned area method
- *    Afira (2022)             -- Multi-temporal burn detection, Indonesia context
+ *    Afira & Wijayanto (2022) -- Multi-temporal burn detection, Indonesia context
  *    Kurbanov et al. (2022)   -- Review: forest burn severity RS methods
  *    Giglio et al. (2025)     -- NASA VIIRS burned area product validation
  *    Urbanski (2018)          -- VIIRS rapid response burned area mapping
@@ -619,7 +619,7 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
   panel.add(ui.Label(
     'When enabled, burn severity, dATBI, and VIIRS hotspot layers are restricted ' +
     'to peatland areas only (Global Peatland Map 2.0, 1 km). Peatland fires carry ' +
-    'the greatest carbon emission and longest recovery implications (Afira 2022).',
+    'the greatest carbon emission and longest recovery implications (Afira & Wijayanto 2022).',
     {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}
   ));
   panel.add(ui.Label(
@@ -1046,6 +1046,8 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   panel.add(ui.Label('Key References',
     {fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px 0'}));
   [
+    {text: 'Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). Ecological Informatics, 69, 101677.',
+     doi:  'https://doi.org/10.1016/j.ecoinf.2022.101677'},
     {text: 'Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. Remote Sensing of Environment, 331, 115006.',
      doi:  'https://doi.org/10.1016/j.rse.2025.115006'},
     {text: 'Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. Alexandria Engineering Journal, 61(2), 1551-1561.',

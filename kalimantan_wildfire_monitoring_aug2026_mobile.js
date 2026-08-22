@@ -705,6 +705,8 @@ function buildRefsTab() {
   // Key references
   panel.add(ui.Label('References', {fontWeight: 'bold', fontSize: '11px', margin: '0 0 4px 0'}));
   [
+    {text: 'Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). Ecological Informatics, 69, 101677.',
+     doi:  'https://doi.org/10.1016/j.ecoinf.2022.101677'},
     {text: 'Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. Remote Sensing of Environment, 331, 115006.',
      doi:  'https://doi.org/10.1016/j.rse.2025.115006'},
     {text: 'Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. Alexandria Engineering Journal, 61(2), 1551-1561.',

@@ -149,7 +149,7 @@ The following layers are available in both scripts (desktop via checkboxes, mobi
 
 - Pinto, M. M., Trigo, R. M., Trigo, I. F., & DaCamara, C. C. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing, 13*(9), 1608. https://doi.org/10.3390/rs13091608
 
-- Afira, R. N. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). -- Multi-index burn detection, Indonesian peatland context, XGBoost classification.
+- Afira, N., & Wijayanto, A. W. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). *Ecological Informatics, 69*, 101677. https://doi.org/10.1016/j.ecoinf.2022.101677
 
 - Kurbanov, E., Vorobev, O., Lezhnin, S., Sha, J., Wang, J., Li, X., Cole, J., Dergunov, D., & Wang, Y. (2022). Remote sensing of forest burnt area, burn severity, and post-fire recovery: A review. *Remote Sensing, 14*(19), 4714. https://doi.org/10.3390/rs14194714
 
