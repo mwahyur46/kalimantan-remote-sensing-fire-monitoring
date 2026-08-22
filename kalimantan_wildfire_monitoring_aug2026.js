@@ -58,7 +58,7 @@ var BURN_MIN_HA    = 10;             // Minimum patch size for vectorized burn p
 // reduce to 30 m.
 var VECTORIZE_SCALE = 60;
 
-// Kalimantan province names matching FAO/GAUL/2015/level1 ADM1_NAME field
+// Province names matching FAO GAUL 2024 Level 1 gaul1_name field.
 var KALIMANTAN_ADM1 = [
   'Kalimantan Barat',
   'Kalimantan Tengah',
@@ -85,15 +85,16 @@ Map.style().set('cursor', 'crosshair');
 // 3. PROVINCE BOUNDARIES
 // ============================================================================
 /**
- * Loads Kalimantan provincial boundaries from FAO GAUL Level 1 dataset.
- * Filters Indonesia features to the five Kalimantan administrative units.
+ * Loads Kalimantan provincial boundaries from FAO GAUL 2024 Level 1.
+ * GAUL 2024 includes Kalimantan Utara unlike the 2015 edition.
+ * Citation: Franceschini et al. (2025) FAO. https://doi.org/10.4060/cd4262en
  *
  * @returns {ee.FeatureCollection} Five Kalimantan province polygons
  */
 function loadProvinces() {
-  return ee.FeatureCollection('FAO/GAUL/2015/level1')
-    .filter(ee.Filter.eq('ADM0_NAME', 'Indonesia'))
-    .filter(ee.Filter.inList('ADM1_NAME', KALIMANTAN_ADM1));
+  return ee.FeatureCollection('projects/sat-io/open-datasets/FAO/GAUL/GAUL_2024_L1')
+    .filter(ee.Filter.eq('iso3_code', 'IDN'))
+    .filter(ee.Filter.inList('gaul1_name', KALIMANTAN_ADM1));
 }
 
 // ============================================================================
@@ -893,10 +894,12 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
       {fontSize: '11px', margin: '1px 0'});
     panel.add(lbl);
 
-    var provGeom = provinces
-      .filter(ee.Filter.eq('ADM1_NAME', name))
-      .first()
-      .geometry();
+    var filtered = provinces.filter(ee.Filter.eq('gaul1_name', name));
+    var provGeom = ee.Geometry(ee.Algorithms.If(
+      filtered.size().gt(0),
+      filtered.first().geometry(),
+      ee.Geometry.Point([0, 0])
+    ));
     viirs.provinceCount(provGeom).evaluate(function(n) {
       lbl.setValue(shortName + ': ' + (n != null ? n.toLocaleString() : '0') + ' fire pixels');
     });
@@ -1034,7 +1037,7 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     'VIIRS NRT: NASA/LANCE/SNPP_VIIRS/C2 (375m)',
     'Landsat 8/9: USGS Collection 2 Level-2 SR (30m)',
     'Sentinel-1: ESA Copernicus GRD IW (10m)',
-    'Boundaries: FAO GAUL 2015 Level 1',
+    'Boundaries: FAO GAUL 2024 Level 1 (Franceschini et al. 2025)',
     'Peatlands: Global Peatland Map 2.0 -- Global Peatlands Initiative / COP26 (1 km)'
   ].forEach(function(s) {
     panel.add(ui.Label(s, {fontSize: '10px', color: '#444', margin: '1px 0 1px 4px'}));
@@ -1058,7 +1061,9 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {text: 'Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. International Journal of Applied Earth Observation and Geoinformation, 153, 105517.',
      doi:  'https://doi.org/10.1016/j.jag.2026.105517'},
     {text: 'Greifswald Mire Centre (2022). Global Peatland Map 2.0. Underlying dataset of the UNEP Global Peatland Assessment -- The State of the World\'s Peatlands: Evidence for action toward the conservation, restoration, and sustainable management of peatlands, Global Peatlands Initiative, United Nations Environment Programme, Nairobi.',
-     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'}
+     doi:  'https://www.greifswald-moor-centrum.de/en/services/gis-data/global-peatland-map-2-0/'},
+    {text: 'Franceschini, G., Khan, A., Moretti, L., Nyabuti, K., Asif, M., Bezuidenhoudt, E., & Morteo, K. (2025). The Global Administrative Unit Layers (GAUL) 2024. Technical guidelines. Rome, FAO.',
+     doi:  'https://doi.org/10.4060/cd4262en'}
   ].forEach(function(ref) {
     panel.add(ui.Label(ref.text,
       {fontSize: '10px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
