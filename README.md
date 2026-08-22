@@ -141,15 +141,19 @@ The following layers are available in both scripts (desktop via checkboxes, mobi
 
 ## References
 
-| Citation | Contribution |
-|---|---|
-| Waleed & Bilal (2026) | ATBI index, dATBI, adaptive Otsu thresholding, BAM framework |
-| Giglio et al. (2025) | NASA VIIRS burned area product VNP64A1 validation |
-| Pinto et al. (2021) | Sentinel-2 + VIIRS practical burned area, GEE cloud-free compositing |
-| Afira (2022) | Multi-index burned area mapping, Indonesian peatland context |
-| Kurbanov et al. (2022) | Review of 329 RS burn severity studies (2000-2020) |
-| Urbanski (2018) | VIIRS rapid-response burned area, confidence filtering |
-| Siegert (2000) | ERS-2 SAR burn mapping, East Kalimantan 1998 El Nino fires |
+- Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. *[Journal]*. -- ATBI index, dATBI, adaptive Otsu thresholding, BAM framework.
+
+- Giglio, L., et al. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. *[Journal]*. -- VNP64A1 product validation, VIIRS confidence band encoding, Southeast Asia BA discrepancy.
+
+- Pinto, M. M., et al. (2021). A practical method for high-resolution burned area monitoring using Sentinel-2 and VIIRS. *Remote Sensing of Environment*. -- S2 + VIIRS burned area methodology, GEE cloud-free compositing approach.
+
+- Afira, R. N. (2022). Mono-temporal and multi-temporal approaches for burnt area detection using Sentinel-2 satellite imagery (a case study of Rokan Hilir Regency, Indonesia). *[Journal]*. -- Multi-index burn detection, Indonesian peatland context, XGBoost classification.
+
+- Kurbanov, E., et al. (2022). Remote sensing of forest burnt area, burn severity, and post-fire recovery: A review. *Remote Sensing*. -- Systematic review of 329 RS burn severity studies (2000-2020); spectral index and sensor usage frequencies.
+
+- Urbanski, S. P. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. *Remote Sensing of Environment*. -- VIIRS confidence filtering rationale, proximity-based burn scar confirmation.
+
+- Siegert, F., & Ruecker, G. (2000). The 1998 forest fires in East Kalimantan (Indonesia): A quantitative evaluation using high resolution, multitemporal ERS-2 SAR images and NOAA-AVHRR hotspot data. *Remote Sensing of Environment*, 72(1), 64-77. -- SAR-based fire monitoring methodology for Kalimantan; decreased backscatter as burn indicator.
 
 ---
 
