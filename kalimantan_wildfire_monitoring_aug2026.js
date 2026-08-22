@@ -530,22 +530,72 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     {fontSize: '11px', color: '#1a73e8', margin: '0 0 4px 0'}));
   panel.add(divider());
 
-  // --- Layer toggles (driven by Map.layers()) ---
-  panel.add(ui.Label('Layers',
-    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0'}));
+  // --- Layer toggles with per-layer descriptions ---
+  panel.add(ui.Label('Map Layers',
+    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 2px 0'}));
 
-  for (var i = 0; i < Map.layers().length(); i++) {
-    (function(idx) {
-      var layer = Map.layers().get(idx);
-      var cb = ui.Checkbox({
-        label: layer.getName(),
-        value: layer.getShown(),
-        style: {fontSize: '11px', margin: '2px 0'}
-      });
-      cb.onChange(function(checked) { layer.setShown(checked); });
-      panel.add(cb);
-    })(i);
+  // Helper: checkbox + description pair for a layer by index
+  function layerRow(idx, description) {
+    var layer = Map.layers().get(idx);
+    var cb = ui.Checkbox({
+      label: layer.getName(),
+      value: layer.getShown(),
+      style: {fontSize: '11px', fontWeight: 'bold', margin: '3px 0 0 0'}
+    });
+    cb.onChange(function(checked) { layer.setShown(checked); });
+    panel.add(cb);
+    panel.add(ui.Label(description,
+      {fontSize: '10px', color: '#666', margin: '0 0 2px 8px'}));
   }
+
+  layerRow(0, 'Outlines the five Kalimantan provinces as a geographic reference.');
+
+  panel.add(ui.Label('Landsat Optical Imagery',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(1,
+    'True-color image from July 2026 (pre-fire baseline). Appears green because ' +
+    'Kalimantan is mostly intact tropical forest. Compare with the post-fire image.'
+  );
+  layerRow(2,
+    'True-color image from August 2026. Green = intact forest; darker brownish ' +
+    'patches = burn scars. White patches = cloud cover blocking the satellite view.'
+  );
+  layerRow(3,
+    'False-color using shortwave infrared (SWIR). Active burn scars appear ' +
+    'bright red-orange, making them easier to spot than in the true-color view.'
+  );
+
+  panel.add(ui.Label('Burn Scar Analysis',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(4,
+    'Diagnostic: shows only where the satellite burn signal is positive, before ' +
+    'the severity threshold is applied. Yellow = weak signal; red = strong burn signal. ' +
+    'Transparent areas have no burn signal (intact forest, water, or cloud shadow).'
+  );
+  layerRow(5,
+    'Fire damage intensity in three levels. Low = partial scorching; ' +
+    'High = intense burn with major vegetation loss. Clouds and unburned areas ' +
+    'are transparent.'
+  );
+
+  panel.add(ui.Label('Active Fire Detections',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(6,
+    'NASA VIIRS 375m pixel with a nominal (likely) active fire signal ' +
+    'detected during August 2026.'
+  );
+  layerRow(7,
+    'Active fire detection with a strong, high-confidence thermal signal -- ' +
+    'the most certain fire locations.'
+  );
+
+  panel.add(ui.Label('Radar (Cloud-Penetrating)',
+    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  layerRow(8,
+    'Sentinel-1 radar signal change between July and August. Unlike optical ' +
+    'cameras, radar passes through clouds. Red = signal loss, suggesting forest ' +
+    'canopy was lost. Speckle-filtered to reduce noise.'
+  );
 
   panel.add(divider());
 
@@ -742,6 +792,15 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {fontWeight: 'bold', fontSize: '17px', margin: '0 0 2px 0'}));
   panel.add(ui.Label('Kalimantan -- August 2026 rapid fire assessment',
     {fontSize: '11px', color: '#666', margin: '0 0 4px 0'}));
+  panel.add(ui.Label(
+    'In August 2026, widespread fires were detected across Kalimantan ' +
+    '(Indonesian Borneo) during the annual dry season. Fires affected peatland ' +
+    'and forest areas across multiple provinces. The causes are under ' +
+    'investigation by relevant authorities. This map combines three satellite ' +
+    'systems to track where fires occurred, how severely vegetation was burned, ' +
+    'and where radar data reveals fire signals hidden under cloud cover.',
+    {fontSize: '10px', color: '#333', margin: '4px 0 6px 0'}
+  ));
   panel.add(divider());
 
   // --- Date range ---
@@ -907,7 +966,7 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   panel.add(ui.Label(
     '3. Carbon emission estimate: combining mapped burn area with the ' +
     'companion mangrove biomass analysis would allow a first-order ' +
-    'estimate of CO2 released.',
+    'estimate of CO₂ released.',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
@@ -924,7 +983,8 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   [
     'VIIRS NRT: NASA/LANCE/SNPP_VIIRS/C2 (375m)',
     'Landsat 8/9: USGS Collection 2 Level-2 SR (30m)',
-    'Sentinel-1: ESA Copernicus GRD IW (10m)'
+    'Sentinel-1: ESA Copernicus GRD IW (10m)',
+    'Boundaries: FAO GAUL 2015 Level 1'
   ].forEach(function(s) {
     panel.add(ui.Label(s, {fontSize: '10px', color: '#444', margin: '1px 0 1px 4px'}));
   });
@@ -932,20 +992,20 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   panel.add(ui.Label('Key References',
     {fontWeight: 'bold', fontSize: '13px', margin: '8px 0 4px 0'}));
   [
-    {text: 'Waleed & Bilal (2026). BAM: physics-informed burned area mapping.',
-     doi:  'doi.org/10.1016/j.jag.2026.105517'},
-    {text: 'Giglio et al. (2025). NASA VIIRS burned area product validation.',
-     doi:  'doi.org/10.1016/j.rse.2025.115006'},
-    {text: 'Kurbanov et al. (2022). Remote sensing of forest burn severity: a review.',
-     doi:  'doi.org/10.3390/rs14194714'},
-    {text: 'Pinto et al. (2021). High-resolution burned area monitoring with Sentinel-2 and VIIRS.',
-     doi:  'doi.org/10.3390/rs13091608'},
-    {text: 'Afira (2022). Multi-temporal burn detection, Indonesia (Sentinel-2).',
-     doi:  'doi.org/10.1016/j.aej.2021.06.064'},
-    {text: 'Urbanski (2018). VIIRS rapid response burned area algorithm.',
-     doi:  'International Journal of Wildland Fire'},
-    {text: 'Siegert (2000). ERS-2 SAR fire mapping, East Kalimantan.',
-     doi:  'Remote Sensing of Environment, vol. 72'}
+    {text: 'Giglio, L., Boschetti, L., Roy, D. P., Hall, J. V., Zubkova, M., Humber, M., Huang, H., & Oles, V. (2025). The NASA VIIRS burned area product, global validation, and intercomparison with the NASA MODIS burned area product. Remote Sensing of Environment, 331, 115006.',
+     doi:  'https://doi.org/10.1016/j.rse.2025.115006'},
+    {text: 'Kadir, E. A., Rosa, S. L., Syukur, A., Othman, M., & Daud, H. (2021). Forest fire spreading and carbon concentration identification in tropical region Indonesia. Alexandria Engineering Journal, 61(2), 1551-1561.',
+     doi:  'https://doi.org/10.1016/j.aej.2021.06.064'},
+    {text: 'Kurbanov, E., Vorobev, O., Lezhnin, S., Sha, J., Wang, J., Li, X., Cole, J., Dergunov, D., & Wang, Y. (2022). Remote Sensing of forest burnt area, burn Severity, and Post-Fire Recovery: A review. Remote Sensing, 14(19), 4714.',
+     doi:  'https://doi.org/10.3390/rs14194714'},
+    {text: 'Pinto, M. M., Trigo, R. M., Trigo, I. F., & DaCamara, C. C. (2021). A practical method for High-Resolution burned Area monitoring using Sentinel-2 and VIIRS. Remote Sensing, 13(9), 1608.',
+     doi:  'https://doi.org/10.3390/rs13091608'},
+    {text: 'Siegert, F., & Hoffmann, A. A. (2000). The 1998 forest fires in East Kalimantan (Indonesia). Remote Sensing of Environment, 72(1), 64-77.',
+     doi:  'https://doi.org/10.1016/s0034-4257(99)00092-9'},
+    {text: 'Urbanski, S., Nordgren, B., Albury, C., Schwert, B., Peterson, D., Quayle, B., & Hao, W. M. (2018). A VIIRS direct broadcast algorithm for rapid response mapping of wildfire burned area in the western United States. Remote Sensing of Environment, 219, 271-283.',
+     doi:  'https://doi.org/10.1016/j.rse.2018.10.007'},
+    {text: 'Waleed, M., & Bilal, M. (2026). BAM: A physics-informed self-supervised framework for near-real-time wildfire burned area mapping from multi-source earth observation. International Journal of Applied Earth Observation and Geoinformation, 153, 105517.',
+     doi:  'https://doi.org/10.1016/j.jag.2026.105517'}
   ].forEach(function(ref) {
     panel.add(ui.Label(ref.text,
       {fontSize: '10px', color: '#333', margin: '4px 0 0 0', fontWeight: 'bold'}));
@@ -985,7 +1045,9 @@ var burnSeverity = classifyBurnSeverity(datbi, otsuVal);
 var burnAreas = computeBurnAreas(burnSeverity, aoi);
 
 // --- Sentinel-1 SAR ---
-var sar = loadSAR(aoi, PRE_FIRE_START, PRE_FIRE_END, START_DATE, END_DATE);
+var sar         = loadSAR(aoi, PRE_FIRE_START, PRE_FIRE_END, START_DATE, END_DATE);
+// 60m focal median reduces SAR speckle while preserving real fire-patch signals.
+var sarChangeSm = sar.change.focal_median(60, 'circle', 'meters');
 
 // ============================================================================
 // ADD MAP LAYERS
@@ -1021,10 +1083,13 @@ Map.addLayer(
 );
 
 // dATBI continuous (diagnostic layer)
+// dATBI diagnostic: mask out negative values (cloud shadow / water artefacts)
+// so only the positive burn signal is shown. Yellow-to-red palette avoids
+// the misleading blue-dominant display from cloud shadow in the pre-fire composite.
 Map.addLayer(
-  datbi,
-  {min: -0.5, max: 0.8, palette: PALETTE_DATBI},
-  'dATBI (continuous)', false
+  datbi.updateMask(datbi.gt(0)),
+  {min: 0, max: 0.4, palette: PALETTE_SEVERITY},
+  'dATBI (burn signal only)', false
 );
 
 // Burn severity -- classified (primary output)
@@ -1050,10 +1115,11 @@ Map.addLayer(
   'VIIRS Hotspots -- High Confidence (conf=2)', true
 );
 
-// SAR backscatter change dVV (cloud-penetrating supplementary layer)
+// SAR backscatter change dVV: speckle-filtered + ±3 dB range so fire-related
+// canopy loss (-1 to -3 dB) renders as visible red rather than near-white.
 var sarLayer = ui.Map.Layer(
-  sar.change.select('dVV'),
-  {min: -6, max: 6, palette: PALETTE_SAR},
+  sarChangeSm.select('dVV'),
+  {min: -3, max: 3, palette: PALETTE_SAR},
   'SAR Backscatter Change dVV (optional)', false, 0.7
 );
 Map.layers().add(sarLayer);
@@ -1063,7 +1129,7 @@ Map.layers().add(sarLayer);
 // ============================================================================
 
 // Left panel must be built AFTER all Map.addLayer() calls
-var leftPanel  = buildLeftPanel(datbi, burnSeverity, sar.change, severityLayer, sarLayer, otsuVal);
+var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, sarLayer, otsuVal);
 var rightPanel = buildRightPanel(viirs, provinces, burnAreas, otsuVal);
 
 ui.root.insert(0, leftPanel);
