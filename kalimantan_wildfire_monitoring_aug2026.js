@@ -509,7 +509,6 @@ function divider() {
  * @param {ee.Image}     burnSeverity    - Classified severity image (for inspector)
  * @param {ee.Image}     sarChange       - SAR dVV/dVH change image (for inspector)
  * @param {ui.Map.Layer} severityLayer   - Reference to severity map layer object
- * @param {ui.Map.Layer} sarLayer        - Reference to SAR change map layer object
  * @param {ee.Number}    otsuVal         - Computed Otsu threshold (for display)
  * @param {ee.Image}     peatMask        - Binary peatland mask (1 = peat present)
  * @param {ee.Image}     burnSeverityRaw - Unmasked severity image (before peat filter)
@@ -517,7 +516,7 @@ function divider() {
  * @param {Object}       viirsObj        - {nominal, high, ...} from loadVIIRS()
  * @returns {ui.Panel} Constructed left panel
  */
-function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer, otsuVal,
+function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, otsuVal,
                         peatMask, burnSeverityRaw, datbiRaw, viirsObj) {
   var panel = ui.Panel({
     layout: ui.Panel.Layout.flow('vertical'),
@@ -537,10 +536,6 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     {fontSize: '11px', color: '#1a73e8', margin: '0 0 4px 0'}));
   panel.add(divider());
 
-  // --- Layer toggles with per-layer descriptions ---
-  panel.add(ui.Label('Map Layers',
-    {fontWeight: 'bold', fontSize: '13px', margin: '0 0 2px 0'}));
-
   // Helper: checkbox + description pair for a layer by index
   function layerRow(idx, description) {
     var layer = Map.layers().get(idx);
@@ -555,10 +550,14 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
       {fontSize: '10px', color: '#666', margin: '0 0 2px 8px'}));
   }
 
+  // --- Province Boundaries ---
   layerRow(0, 'Outlines the five Kalimantan provinces as a geographic reference.');
 
+  panel.add(divider());
+
+  // --- Landsat Optical Imagery ---
   panel.add(ui.Label('Landsat Optical Imagery',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
   layerRow(1,
     'True-color image from July 2026 (pre-fire baseline). Appears green because ' +
     'Kalimantan is mostly intact tropical forest. Compare with the post-fire image.'
@@ -572,15 +571,21 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     'bright red-orange, making them easier to spot than in the true-color view.'
   );
 
+  panel.add(divider());
+
+  // --- Peatland Data ---
   panel.add(ui.Label('Peatland Data',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
   layerRow(4,
     'Global Peatland Map 2.0 (1 km). Light green = peat in soil mosaic; ' +
     'dark green = peat-dominated. Source: Global Peatlands Initiative / COP26.'
   );
 
-  panel.add(ui.Label('Burn Scar Analysis',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  panel.add(divider());
+
+  // --- Burn Scar Analysis + legend ---
+  panel.add(ui.Label('Burn Scar Analysis (Landsat dATBI)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
   layerRow(5,
     'Diagnostic: shows only where the satellite burn signal is positive, before ' +
     'the severity threshold is applied. Yellow = weak signal; red = strong burn signal. ' +
@@ -591,9 +596,35 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     'High = intense burn with major vegetation loss. Clouds and unburned areas ' +
     'are transparent.'
   );
+  panel.add(ui.Label(
+    'Areas where post-fire satellite reflectance changed significantly ' +
+    'relative to the pre-fire baseline, indicating vegetation loss from burning.',
+    {fontSize: '10px', color: '#555', margin: '4px 0 4px 0'}));
+  panel.add(ui.Thumbnail({
+    image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
+               .visualize({min: 0, max: 1, palette: PALETTE_SEVERITY}),
+    params: {bbox: [-180, -1, 180, 1], dimensions: '256x16'},
+    style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
+  }));
+  panel.add(ui.Panel([
+    ui.Label('Low',      {fontSize: '10px', margin: '2px 0'}),
+    ui.Label('Moderate', {fontSize: '10px', margin: '2px 0',
+      stretch: 'horizontal', textAlign: 'center'}),
+    ui.Label('High',     {fontSize: '10px', margin: '2px 0'})
+  ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
+  var otsuLabel = ui.Label('Burn threshold T: computing...',
+    {fontSize: '10px', color: '#888', margin: '2px 0'});
+  panel.add(otsuLabel);
+  otsuVal.evaluate(function(v) {
+    otsuLabel.setValue('Burn threshold T: ' + (v != null ? v.toFixed(4) : 'N/A') +
+      '  (scene-adaptive Otsu)');
+  });
 
-  panel.add(ui.Label('Active Fire Detections',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  panel.add(divider());
+
+  // --- Active Fire Detections + legend ---
+  panel.add(ui.Label('Active Fire Detections (VIIRS 375m)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
   layerRow(7,
     'NASA VIIRS 375m pixel with a nominal (likely) active fire signal ' +
     'detected during August 2026.'
@@ -602,14 +633,50 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
     'Active fire detection with a strong, high-confidence thermal signal -- ' +
     'the most certain fire locations.'
   );
+  panel.add(ui.Label(
+    'Each colored cell is a 375 m x 375 m area where a satellite ' +
+    'thermal anomaly consistent with an active fire was detected.',
+    {fontSize: '10px', color: '#555', margin: '4px 0 4px 0'}));
 
-  panel.add(ui.Label('Radar (Cloud-Penetrating)',
-    {fontWeight: 'bold', fontSize: '11px', color: '#555', margin: '4px 0 0 0'}));
+  function swatch(color, text) {
+    return ui.Panel([
+      ui.Label('', {
+        backgroundColor: color, width: '14px', height: '14px',
+        margin: '2px 6px 2px 0', padding: '0', border: '1px solid #ccc'
+      }),
+      ui.Label(text, {fontSize: '11px', margin: '2px 0'})
+    ], ui.Panel.Layout.flow('horizontal'), {margin: '1px 0'});
+  }
+  panel.add(swatch(PALETTE_HOTSPOT.nominal, 'Nominal confidence -- likely fire'));
+  panel.add(swatch(PALETTE_HOTSPOT.high,    'High confidence -- strong fire signal'));
+
+  panel.add(divider());
+
+  // --- Radar + legend ---
+  panel.add(ui.Label('Radar Change (Sentinel-1 SAR)',
+    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
   layerRow(9,
     'Sentinel-1 radar signal change between July and August. Unlike optical ' +
     'cameras, radar passes through clouds. Red = signal loss, suggesting forest ' +
     'canopy was lost. Speckle-filtered to reduce noise.'
   );
+  panel.add(ui.Label(
+    'Radar signal change between July and August. Unlike optical sensors, ' +
+    'radar penetrates cloud cover. Red areas lost vegetation structure, ' +
+    'which can indicate fire damage.',
+    {fontSize: '10px', color: '#555', margin: '4px 0 4px 0'}));
+  panel.add(ui.Thumbnail({
+    image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
+               .visualize({min: 0, max: 1, palette: PALETTE_SAR}),
+    params: {bbox: [-180, -1, 180, 1], dimensions: '256x16'},
+    style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
+  }));
+  panel.add(ui.Panel([
+    ui.Label('Loss (red)',    {fontSize: '10px', margin: '2px 0'}),
+    ui.Label('No change',    {fontSize: '10px', margin: '2px 0',
+      stretch: 'horizontal', textAlign: 'center'}),
+    ui.Label('Gain (green)', {fontSize: '10px', margin: '2px 0'})
+  ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
 
   panel.add(divider());
 
@@ -652,101 +719,6 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, sarLayer,
       Map.layers().get(8).setEeObject(viirsObj.high);
     }
   });
-
-  panel.add(divider());
-
-  // --- Burn severity legend ---
-  panel.add(ui.Label('Burn Severity (Landsat dATBI)',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label(
-    'Areas where post-fire satellite reflectance changed significantly ' +
-    'relative to the pre-fire baseline, indicating vegetation loss from burning.',
-    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
-  panel.add(ui.Thumbnail({
-    image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
-               .visualize({min: 0, max: 1, palette: PALETTE_SEVERITY}),
-    params: {bbox: [-180, -1, 180, 1], dimensions: '256x16'},
-    style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
-  }));
-  panel.add(ui.Panel([
-    ui.Label('Low',      {fontSize: '10px', margin: '2px 0'}),
-    ui.Label('Moderate', {fontSize: '10px', margin: '2px 0',
-      stretch: 'horizontal', textAlign: 'center'}),
-    ui.Label('High',     {fontSize: '10px', margin: '2px 0'})
-  ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
-
-  // Async display of computed Otsu threshold
-  var otsuLabel = ui.Label('Burn threshold T: computing...',
-    {fontSize: '10px', color: '#888', margin: '2px 0'});
-  panel.add(otsuLabel);
-  otsuVal.evaluate(function(v) {
-    otsuLabel.setValue('Burn threshold T: ' + (v != null ? v.toFixed(4) : 'N/A') +
-      '  (scene-adaptive Otsu)');
-  });
-
-  panel.add(divider());
-
-  // --- VIIRS confidence legend (colored swatches) ---
-  panel.add(ui.Label('VIIRS Active Fire Hotspots (375m)',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label(
-    'Each colored cell is a 375 m x 375 m area where a satellite ' +
-    'thermal anomaly consistent with an active fire was detected.',
-    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
-
-  function swatch(color, text) {
-    return ui.Panel([
-      ui.Label('', {
-        backgroundColor: color, width: '14px', height: '14px',
-        margin: '2px 6px 2px 0', padding: '0', border: '1px solid #ccc'
-      }),
-      ui.Label(text, {fontSize: '11px', margin: '2px 0'})
-    ], ui.Panel.Layout.flow('horizontal'), {margin: '1px 0'});
-  }
-  panel.add(swatch(PALETTE_HOTSPOT.nominal, 'Nominal confidence -- likely fire'));
-  panel.add(swatch(PALETTE_HOTSPOT.high,    'High confidence -- strong fire signal'));
-
-  panel.add(divider());
-
-  // --- SAR backscatter change legend ---
-  panel.add(ui.Label('SAR Radar Change (Sentinel-1)',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label(
-    'Radar signal change between July and August. Unlike optical sensors, ' +
-    'radar penetrates cloud cover. Red areas lost vegetation structure, ' +
-    'which can indicate fire damage.',
-    {fontSize: '10px', color: '#555', margin: '0 0 4px 0'}));
-  panel.add(ui.Thumbnail({
-    image : ee.Image.pixelLonLat().select('longitude').unitScale(-180, 180)
-               .visualize({min: 0, max: 1, palette: PALETTE_SAR}),
-    params: {bbox: [-180, -1, 180, 1], dimensions: '256x16'},
-    style : {stretch: 'horizontal', height: '16px', margin: '0', padding: '0'}
-  }));
-  panel.add(ui.Panel([
-    ui.Label('Loss (red)',    {fontSize: '10px', margin: '2px 0'}),
-    ui.Label('No change',    {fontSize: '10px', margin: '2px 0',
-      stretch: 'horizontal', textAlign: 'center'}),
-    ui.Label('Gain (green)', {fontSize: '10px', margin: '2px 0'})
-  ], ui.Panel.Layout.flow('horizontal'), {stretch: 'horizontal'}));
-
-  panel.add(divider());
-
-  // --- Opacity sliders ---
-  panel.add(ui.Label('Burn Severity Opacity',
-    {fontWeight: 'bold', fontSize: '12px', margin: '0 0 2px 0'}));
-  panel.add(ui.Slider({
-    min: 0, max: 1, value: 0.85, step: 0.05,
-    onChange: function(v) { severityLayer.setOpacity(v); },
-    style: {stretch: 'horizontal'}
-  }));
-
-  panel.add(ui.Label('SAR Change Opacity',
-    {fontWeight: 'bold', fontSize: '12px', margin: '6px 0 2px 0'}));
-  panel.add(ui.Slider({
-    min: 0, max: 1, value: 0.7, step: 0.05,
-    onChange: function(v) { sarLayer.setOpacity(v); },
-    style: {stretch: 'horizontal'}
-  }));
 
   panel.add(divider());
 
@@ -1209,7 +1181,7 @@ Map.layers().add(sarLayer);
 // ============================================================================
 
 // Left panel must be built AFTER all Map.addLayer() calls
-var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, sarLayer, otsuVal,
+var leftPanel  = buildLeftPanel(datbi, burnSeverity, sarChangeSm, severityLayer, otsuVal,
                                 peatMask, burnSeverity, datbi, viirs);
 var rightPanel = buildRightPanel(viirs, provinces, burnAreas, otsuVal);
 
