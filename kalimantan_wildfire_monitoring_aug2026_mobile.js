@@ -21,6 +21,8 @@
 // ============================================================================
 // 1. CONFIGURATION
 // ============================================================================
+// Hardcoded bounding box covering all five Kalimantan provinces.
+// No import needed -- ready for direct GEE App deployment.
 var aoi = ee.Geometry.BBox(108.0, -4.1, 119.0, 4.2);
 
 var _cutoffMs  = new Date('2026-09-30').getTime();
