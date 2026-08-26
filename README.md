@@ -108,7 +108,7 @@ Scripts run in the [GEE Code Editor](https://code.earthengine.google.com/). Past
 earthengine run kalimantan_wildfire_monitoring_aug2026.js
 ```
 
-**Desktop script**: requires an `aoi` geometry imported via the Code Editor "Imports" panel (polygon covering Kalimantan). For standalone GEE App deployment, replace the import with:
+**Desktop script**: requires an `aoi` geometry imported via the Code Editor "Imports" panel. The simplest way to create it is to use the drawing tools in the GEE Code Editor (top-left of the map) to draw a polygon over Kalimantan -- it will automatically appear as an import named `geometry`, which you can rename to `aoi`. For standalone GEE App deployment, replace the import with:
 
 ```javascript
 var aoi = ee.Geometry.BBox(108.0, -4.1, 119.0, 4.2);
