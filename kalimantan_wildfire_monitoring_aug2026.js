@@ -35,13 +35,13 @@
 // ============================================================================
 // 1. CONFIGURATION -- all tuneable parameters in one place
 // ============================================================================
-var CUTOFF_DATE    = ee.Date('2026-09-30');
-var _today         = ee.Date(Date.now());
-var _endMillis     = _today.millis().min(CUTOFF_DATE.millis());
-var END_DATE       = ee.Date(_endMillis).format('YYYY-MM-dd');
-var START_DATE     = ee.Date(_endMillis).advance(-20, 'day').format('YYYY-MM-dd');
-var PRE_FIRE_START = ee.Date(_endMillis).advance(-51, 'day').format('YYYY-MM-dd');
-var PRE_FIRE_END   = ee.Date(_endMillis).advance(-21, 'day').format('YYYY-MM-dd');
+var _cutoffMs  = new Date('2026-09-30').getTime();
+var _endMs     = Math.min(Date.now(), _cutoffMs);
+function _fmt(ms) { return new Date(ms).toISOString().slice(0, 10); }
+var END_DATE       = _fmt(_endMs);
+var START_DATE     = _fmt(_endMs - 20 * 86400000);
+var PRE_FIRE_START = _fmt(_endMs - 51 * 86400000);
+var PRE_FIRE_END   = _fmt(_endMs - 21 * 86400000);
 
 // Landsat scene-level cloud cover filter (Landsat C2 metadata field)
 var L_CLOUD_MAX    = 80;             // Drop scenes with cloud cover > 80%
@@ -837,16 +837,10 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   // --- Date range ---
   panel.add(ui.Label('Analysis Period',
     {fontWeight: 'bold', fontSize: '13px', margin: '0 0 4px 0'}));
-  var lblPost = ui.Label('Loading...', {fontSize: '11px', margin: '1px 0'});
-  var lblPre  = ui.Label('Loading...', {fontSize: '11px', margin: '1px 0'});
-  panel.add(lblPost);
-  panel.add(lblPre);
-  ee.String('Post-fire: ').cat(START_DATE).cat(' to ').cat(END_DATE).evaluate(function(s) {
-    lblPost.setValue(s);
-  });
-  ee.String('Pre-fire reference: ').cat(PRE_FIRE_START).cat(' to ').cat(PRE_FIRE_END).evaluate(function(s) {
-    lblPre.setValue(s);
-  });
+  panel.add(ui.Label('Post-fire: ' + START_DATE + ' to ' + END_DATE,
+    {fontSize: '11px', margin: '1px 0'}));
+  panel.add(ui.Label('Pre-fire reference: ' + PRE_FIRE_START + ' to ' + PRE_FIRE_END,
+    {fontSize: '11px', margin: '1px 0'}));
   panel.add(divider());
 
   // --- VIIRS total fire pixel count ---
