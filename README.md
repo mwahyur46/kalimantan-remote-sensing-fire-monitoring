@@ -80,14 +80,16 @@ Cloud masking uses QA_PIXEL bits 3 (cloud) and 4 (cloud shadow). C2 L2 scale fac
 
 ## Configuration
 
-All tuneable parameters are defined at the top of each script:
+All tuneable parameters are defined at the top of each script.
 
-| Variable | Default | Purpose |
+The analysis window advances automatically each day the app is opened, capped at `2026-09-30`. All four date variables below are derived from the current date at runtime using plain JavaScript -- no manual updates are needed while the fire season is active.
+
+| Variable | Derivation | Purpose |
 |---|---|---|
-| `END_DATE` | `2026-08-21` | Post-fire window end |
-| `START_DATE` | `2026-08-01` | Post-fire window start (21-day lookback) |
-| `PRE_FIRE_START` | `2026-07-01` | Pre-fire reference composite start |
-| `PRE_FIRE_END` | `2026-07-31` | Pre-fire reference composite end |
+| `END_DATE` | `min(today, 2026-09-30)` | Post-fire window end |
+| `START_DATE` | `END_DATE - 20 days` | Post-fire window start (21-day lookback) |
+| `PRE_FIRE_START` | `END_DATE - 51 days` | Pre-fire reference composite start |
+| `PRE_FIRE_END` | `END_DATE - 21 days` | Pre-fire reference composite end |
 | `L_CLOUD_MAX` | `80` | Maximum scene-level cloud % for Landsat filter |
 | `OTSU_BIAS` | `0.02` | Conservative upward bias added to raw Otsu threshold |
 | `OTSU_MIN` | `0.03` | Minimum dATBI floor for Otsu threshold |

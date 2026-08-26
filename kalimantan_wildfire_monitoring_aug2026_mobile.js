@@ -23,10 +23,13 @@
 // ============================================================================
 var aoi = ee.Geometry.BBox(108.0, -4.1, 119.0, 4.2);
 
-var END_DATE        = '2026-08-21';
-var START_DATE      = '2026-08-01';
-var PRE_FIRE_START  = '2026-07-01';
-var PRE_FIRE_END    = '2026-07-31';
+var _cutoffMs  = new Date('2026-09-30').getTime();
+var _endMs     = Math.min(Date.now(), _cutoffMs);
+function _fmt(ms) { return new Date(ms).toISOString().slice(0, 10); }
+var END_DATE        = _fmt(_endMs);
+var START_DATE      = _fmt(_endMs - 20 * 86400000);
+var PRE_FIRE_START  = _fmt(_endMs - 51 * 86400000);
+var PRE_FIRE_END    = _fmt(_endMs - 21 * 86400000);
 
 var L_CLOUD_MAX     = 80;
 var OTSU_BIAS       = 0.02;
