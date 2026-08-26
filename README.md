@@ -4,6 +4,15 @@ Satellite-based wildfire monitoring across all five Kalimantan provinces (Indone
 
 ---
 
+## Live Apps & Demo
+
+| App Version | Demo |
+|---|---|
+| **Desktop** ([Open App](https://mwahyur46.users.earthengine.app/view/kalimantan-fire-monitoring-desktop)) | [![Watch on YouTube](https://img.youtube.com/vi/mK6-vJiLtpg/hqdefault.jpg)](https://youtu.be/mK6-vJiLtpg) |
+| **Mobile** ([Open App](https://mwahyur46.users.earthengine.app/view/kalimantan-fire-monitoring)) | [![Watch on YouTube](https://img.youtube.com/vi/HjclsARBXyo/hqdefault.jpg)](https://youtube.com/shorts/HjclsARBXyo) |
+
+---
+
 ## Scripts
 
 | File | Purpose |
