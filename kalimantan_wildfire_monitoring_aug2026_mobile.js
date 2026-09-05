@@ -507,6 +507,107 @@ function buildLayersTab(otsuVal, peatMask, viirsObj) {
 }
 
 // ============================================================================
+// 13b. VIIRS WEEKLY PROVINCE CHART WITH WEEK SELECTOR (mobile)
+// ============================================================================
+/**
+ * Week-selector dropdown + per-province bar chart for the selected week.
+ * Sized for the mobile stats panel (narrower than desktop).
+ *
+ * @param {ee.FeatureCollection} provinces - Kalimantan province polygons
+ * @returns {ui.Panel} Selector + chart panel
+ */
+function buildVIIRSWeeklyPanel(provinces) {
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var startMs = new Date(START_DATE).getTime();
+  var endMs   = new Date(END_DATE).getTime();
+  var weekMs  = 7 * 86400000;
+  var nWeeks  = Math.max(1, Math.ceil((endMs - startMs) / weekMs));
+
+  var weekLabels = [];
+  var weekStarts = [];
+  var weekEnds   = [];
+  for (var w = 0; w < nWeeks; w++) {
+    var wStartMs = startMs + w * weekMs;
+    var wEndMs   = Math.min(wStartMs + weekMs, endMs);
+    var d1 = new Date(wStartMs);
+    var d2 = new Date(wEndMs - 86400000);
+    weekLabels.push(
+      'Week ' + (w + 1) + ' (' +
+      MONTHS[d1.getUTCMonth()] + ' ' + d1.getUTCDate() + ' - ' +
+      MONTHS[d2.getUTCMonth()] + ' ' + d2.getUTCDate() + ')'
+    );
+    weekStarts.push(new Date(wStartMs).toISOString().slice(0, 10));
+    weekEnds.push(new Date(wEndMs).toISOString().slice(0, 10));
+  }
+
+  var shortProvinces = provinces.map(function(f) {
+    return f.set('short_name',
+      ee.String(f.get('gaul1_name')).replace('Kalimantan ', 'Kal. '));
+  });
+
+  var chartPanel = ui.Panel({style: {margin: '2px 0 0 0'}});
+
+  function renderChart(idx) {
+    chartPanel.clear();
+    var fireImg = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
+      .filterDate(weekStarts[idx], weekEnds[idx])
+      .filterBounds(aoi)
+      .select('confidence')
+      .max()
+      .unmask(0)
+      .gte(1)
+      .selfMask()
+      .rename('fire_pixels');
+
+    chartPanel.add(
+      ui.Chart.image.byRegion({
+        image    : fireImg,
+        regions  : shortProvinces,
+        reducer  : ee.Reducer.sum(),
+        scale    : 375,
+        xProperty: 'short_name'
+      })
+      .setChartType('ColumnChart')
+      .setOptions({
+        title         : weekLabels[idx] + ' -- by Province',
+        titleTextStyle: {fontSize: 9, bold: true, color: '#333'},
+        hAxis: {
+          textStyle       : {fontSize: 8},
+          slantedText     : true,
+          slantedTextAngle: 30
+        },
+        vAxis: {
+          title    : 'Fire pixels (375 m)',
+          textStyle: {fontSize: 8},
+          minValue : 0
+        },
+        colors   : ['#e74c3c'],
+        legend   : {position: 'none'},
+        chartArea: {left: 46, right: 6, top: 22, bottom: 55},
+        bar      : {groupWidth: '60%'}
+      })
+    );
+  }
+
+  renderChart(0);
+
+  var selector = ui.Select({
+    items   : weekLabels,
+    value   : weekLabels[0],
+    style   : {stretch: 'horizontal', margin: '0 0 4px 0', fontSize: '10px'},
+    onChange: function(val) { renderChart(weekLabels.indexOf(val)); }
+  });
+
+  return ui.Panel(
+    [selector, chartPanel],
+    ui.Panel.Layout.flow('vertical'),
+    {margin: '0', padding: '0'}
+  );
+}
+
+// ============================================================================
 // 14. STATS TAB PANEL
 // ============================================================================
 /**
@@ -590,6 +691,15 @@ function buildStatsTab(viirs, provinces, burnAreas, otsuVal) {
     });
   });
 
+  // Weekly chart with week selector
+  panel.add(ui.Label('Weekly Fire Activity by Province',
+    {fontWeight: 'bold', fontSize: '10px', margin: '6px 0 2px 0'}));
+  panel.add(ui.Label(
+    'Select a week to see fire pixels per province.',
+    {fontSize: '9px', color: '#666', margin: '0 0 4px 0'}
+  ));
+  panel.add(buildVIIRSWeeklyPanel(provinces));
+
   panel.add(divider());
 
   // Burn area by severity
@@ -659,8 +769,9 @@ function buildStatsTab(viirs, provinces, burnAreas, otsuVal) {
     '2. Carbon emission estimate: combining mapped burn area with the ' +
     'companion mangrove biomass analysis would allow a first-order estimate ' +
     'of CO₂ released.',
-    '3. Time-series monitoring: tracking VIIRS fire counts day by day through ' +
-    'the dry season would show how the event evolved over time.'
+    '3. Time-series monitoring: weekly VIIRS fire pixel counts per province ' +
+    'are shown in the interactive chart above. Future work could extend to daily ' +
+    'resolution or the full dry-season window (June-September).'
   ].forEach(function(txt) {
     panel.add(ui.Label(txt, {fontSize: '9px', color: '#555', margin: '1px 0 3px 4px'}));
   });

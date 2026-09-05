@@ -493,6 +493,109 @@ function divider() {
 }
 
 // ============================================================================
+// 12b. VIIRS WEEKLY PROVINCE CHART WITH WEEK SELECTOR
+// ============================================================================
+/**
+ * Builds a week-selector dropdown + per-province bar chart panel.
+ * Selecting a week renders a column chart of fire pixel counts for each of the
+ * five Kalimantan provinces during that 7-day window.
+ *
+ * @param {ee.FeatureCollection} provinces - Kalimantan province polygons
+ * @returns {ui.Panel} Panel containing the selector and chart
+ */
+function buildVIIRSWeeklyPanel(provinces) {
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  var startMs = new Date(START_DATE).getTime();
+  var endMs   = new Date(END_DATE).getTime();
+  var weekMs  = 7 * 86400000;
+  var nWeeks  = Math.max(1, Math.ceil((endMs - startMs) / weekMs));
+
+  var weekLabels = [];
+  var weekStarts = [];
+  var weekEnds   = [];
+  for (var w = 0; w < nWeeks; w++) {
+    var wStartMs = startMs + w * weekMs;
+    var wEndMs   = Math.min(wStartMs + weekMs, endMs);
+    var d1 = new Date(wStartMs);
+    var d2 = new Date(wEndMs - 86400000);
+    weekLabels.push(
+      'Week ' + (w + 1) + ' (' +
+      MONTHS[d1.getUTCMonth()] + ' ' + d1.getUTCDate() + ' - ' +
+      MONTHS[d2.getUTCMonth()] + ' ' + d2.getUTCDate() + ')'
+    );
+    weekStarts.push(new Date(wStartMs).toISOString().slice(0, 10));
+    weekEnds.push(new Date(wEndMs).toISOString().slice(0, 10));
+  }
+
+  // Abbreviated province names so x-axis labels fit in 300 px
+  var shortProvinces = provinces.map(function(f) {
+    return f.set('short_name',
+      ee.String(f.get('gaul1_name')).replace('Kalimantan ', 'Kal. '));
+  });
+
+  var chartPanel = ui.Panel({style: {margin: '2px 0 0 0'}});
+
+  function renderChart(idx) {
+    chartPanel.clear();
+    var fireImg = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
+      .filterDate(weekStarts[idx], weekEnds[idx])
+      .filterBounds(aoi)
+      .select('confidence')
+      .max()
+      .unmask(0)
+      .gte(1)
+      .selfMask()
+      .rename('fire_pixels');
+
+    chartPanel.add(
+      ui.Chart.image.byRegion({
+        image    : fireImg,
+        regions  : shortProvinces,
+        reducer  : ee.Reducer.sum(),
+        scale    : 375,
+        xProperty: 'short_name'
+      })
+      .setChartType('ColumnChart')
+      .setOptions({
+        title         : weekLabels[idx] + ' -- by Province',
+        titleTextStyle: {fontSize: 10, bold: true, color: '#333'},
+        hAxis: {
+          textStyle       : {fontSize: 9},
+          slantedText     : true,
+          slantedTextAngle: 30
+        },
+        vAxis: {
+          title    : 'Fire pixels (375 m)',
+          textStyle: {fontSize: 9},
+          minValue : 0
+        },
+        colors   : ['#e74c3c'],
+        legend   : {position: 'none'},
+        chartArea: {left: 52, right: 8, top: 26, bottom: 60},
+        bar      : {groupWidth: '60%'}
+      })
+    );
+  }
+
+  renderChart(0);
+
+  var selector = ui.Select({
+    items   : weekLabels,
+    value   : weekLabels[0],
+    style   : {stretch: 'horizontal', margin: '0 0 4px 0', fontSize: '11px'},
+    onChange: function(val) { renderChart(weekLabels.indexOf(val)); }
+  });
+
+  return ui.Panel(
+    [selector, chartPanel],
+    ui.Panel.Layout.flow('vertical'),
+    {margin: '0', padding: '0'}
+  );
+}
+
+// ============================================================================
 // 13. BUILD LEFT SIDEBAR
 // ============================================================================
 /**
@@ -880,6 +983,17 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     });
   });
 
+  // --- Weekly VIIRS fire activity chart ---
+  panel.add(ui.Label('Weekly Fire Activity by Province',
+    {fontWeight: 'bold', fontSize: '12px', margin: '6px 0 2px 0'}));
+  panel.add(ui.Label(
+    'Select a week to see fire pixel counts per province. ' +
+    'Each bar represents one of the five Kalimantan provinces. ' +
+    'Nominal and high confidence VIIRS detections only.',
+    {fontSize: '10px', color: '#666', margin: '0 0 4px 0'}
+  ));
+  panel.add(buildVIIRSWeeklyPanel(provinces));
+
   panel.add(divider());
 
   // --- Burn scar area by severity ---
@@ -998,8 +1112,9 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
-    '3. Time-series monitoring: tracking VIIRS fire counts day by day ' +
-    'through the dry season would show how the event evolved over time.',
+    '3. Time-series monitoring: weekly VIIRS fire pixel counts per province ' +
+    'are shown in the interactive chart above. Future work could extend to daily ' +
+    'resolution or the full dry-season window (June-September).',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
 
@@ -1266,9 +1381,10 @@ ui.root.add(rightPanel);
  *    Siegert (2000) as a cloud-independent index proxy. Fuse with optical
  *    dATBI for cloud-gap filling.
  *
- * 5. Time-series animation
- *    Build a VIIRS hotspot density time series chart (ee.ImageCollection
- *    daily composites) to show the temporal evolution of the fire event.
+ * 5. Time-series animation (partially implemented)
+ *    Weekly VIIRS fire counts per province are now charted in the right panel
+ *    via buildVIIRSTemporalChart(). Future work: extend to daily resolution or
+ *    animate the spatial hotspot distribution over the full dry season.
  *
  * 6. Emissions estimation
  *    Combine burn area with fuel load data (AGB map from the companion
