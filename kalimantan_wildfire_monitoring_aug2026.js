@@ -443,7 +443,7 @@ function computeBurnAreas(burnSeverity, geometry) {
       .reduceRegion({
         reducer  : ee.Reducer.sum(),
         geometry : geometry,
-        scale    : 30,
+        scale    : 60,
         maxPixels: 1e10,
         tileScale: 4
       })

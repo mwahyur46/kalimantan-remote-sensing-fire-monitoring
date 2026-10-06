@@ -252,7 +252,7 @@ function computeBurnAreas(burnSeverity, geometry) {
     return pixelArea.updateMask(burnSeverity.eq(cls)).rename('area_ha')
       .reduceRegion({
         reducer: ee.Reducer.sum(), geometry: geometry,
-        scale: 30, maxPixels: 1e10, tileScale: 4
+        scale: 60, maxPixels: 1e10, tileScale: 4
       }).getNumber('area_ha');
   }
   return {lowHa: areaForClass(1), modHa: areaForClass(2), highHa: areaForClass(3)};
