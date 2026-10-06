@@ -510,7 +510,7 @@ function buildVIIRSWeeklyPanel(provinces) {
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
                 'Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  var startMs = new Date(START_DATE).getTime();
+  var startMs = new Date(SEASON_START).getTime();
   var endMs   = new Date(END_DATE).getTime();
   var weekMs  = 7 * 86400000;
   var nWeeks  = Math.max(1, Math.ceil((endMs - startMs) / weekMs));
@@ -611,38 +611,77 @@ function buildVIIRSWeeklyPanel(provinces) {
  * @returns {ui.Chart} Line chart widget ready to add to a panel
  */
 function buildVIIRSDailyTrendChart(provinces) {
-  var shortProvinces = provinces.map(function(f) {
-    return f.set('short_name',
-      ee.String(f.get('gaul1_name')).replace('Kalimantan ', 'Kal. '));
-  });
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
+                'Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  // One image per day; mask to nominal+high confidence fire pixels only.
-  var fireCol = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
-    .filterDate(SEASON_START, END_DATE)
-    .filterBounds(aoi)
-    .select('confidence')
-    .map(function(img) {
-      return img.gte(1).selfMask().rename('fire_pixels')
-        .copyProperties(img, ['system:time_start']);
+  var shortNames = ['Kal. Barat', 'Kal. Tengah', 'Kal. Selatan',
+                    'Kal. Timur', 'Kal. Utara'];
+
+  // Build weekly aggregates as a FeatureCollection to avoid seriesByRegion
+  // memory limits at Kalimantan scale (~540 000 km2 x 5 provinces x ~52 days).
+  var startMs = new Date(SEASON_START).getTime();
+  var endMs   = new Date(END_DATE).getTime();
+  var weekMs  = 7 * 86400000;
+  var nWeeks  = Math.max(1, Math.ceil((endMs - startMs) / weekMs));
+
+  var weekFeatures = [];
+  for (var w = 0; w < nWeeks; w++) {
+    var wStartMs = startMs + w * weekMs;
+    var wEndMs   = Math.min(wStartMs + weekMs, endMs);
+    var wStartStr = new Date(wStartMs).toISOString().slice(0, 10);
+    var wEndStr   = new Date(wEndMs).toISOString().slice(0, 10);
+    var d1 = new Date(wStartMs);
+    var label = MONTHS[d1.getUTCMonth()] + ' ' + d1.getUTCDate();
+
+    // Max-composite for the week, then sum fire pixels per province
+    var fireImg = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
+      .filterDate(wStartStr, wEndStr)
+      .filterBounds(aoi)
+      .select('confidence')
+      .max()
+      .unmask(0)
+      .gte(1)
+      .selfMask()
+      .rename('fire_pixels');
+
+    var counts = fireImg.reduceRegions({
+      collection: provinces,
+      reducer   : ee.Reducer.sum(),
+      scale     : 375,
+      tileScale : 4
     });
 
-  return ui.Chart.image.seriesByRegion({
-    imageCollection: fireCol,
-    regions        : shortProvinces,
-    reducer        : ee.Reducer.sum(),
-    scale          : 375,
-    seriesProperty : 'short_name',
-    xProperty      : 'system:time_start'
+    // One feature per week; province counts stored as named properties
+    var weekFeat = ee.Feature(null, {
+      week_label: label,
+      week_start: wStartMs
+    });
+    KALIMANTAN_ADM1.forEach(function(pname, i) {
+      var pCount = counts
+        .filter(ee.Filter.eq('gaul1_name', pname))
+        .first()
+        .get('sum');
+      weekFeat = weekFeat.set(shortNames[i], pCount);
+    });
+    weekFeatures.push(weekFeat);
+  }
+
+  var weekFc = ee.FeatureCollection(weekFeatures);
+
+  return ui.Chart.feature.byFeature({
+    features  : weekFc,
+    xProperty : 'week_label',
+    yProperties: shortNames
   })
   .setChartType('LineChart')
   .setOptions({
-    title         : 'Daily Active Fire Pixels -- Jul to Oct 2026',
+    title         : 'Weekly Active Fire Pixels -- Jul to Oct 2026',
     titleTextStyle: {fontSize: 10, bold: true, color: '#333'},
     hAxis: {
-      title        : '',
-      textStyle    : {fontSize: 9},
-      format       : 'MMM d',
-      gridlines    : {count: -1}
+      title    : '',
+      textStyle: {fontSize: 9},
+      slantedText     : true,
+      slantedTextAngle: 30
     },
     vAxis: {
       title    : 'Fire pixels (375 m)',
@@ -650,8 +689,8 @@ function buildVIIRSDailyTrendChart(provinces) {
       minValue : 0
     },
     lineWidth : 1.5,
-    pointSize : 2,
-    chartArea : {left: 50, right: 8, top: 28, bottom: 60},
+    pointSize : 3,
+    chartArea : {left: 50, right: 8, top: 28, bottom: 72},
     legend    : {position: 'bottom', textStyle: {fontSize: 9}},
     colors    : ['#e74c3c', '#e67e22', '#f1c40f', '#27ae60', '#2980b9']
   });
@@ -1044,11 +1083,11 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     });
   });
 
-  // --- Daily dry-season trend chart ---
-  panel.add(ui.Label('Daily Fire Trend -- Full Dry Season',
+  // --- Weekly dry-season trend chart ---
+  panel.add(ui.Label('Weekly Fire Trend -- Full Dry Season',
     {fontWeight: 'bold', fontSize: '12px', margin: '6px 0 2px 0'}));
   panel.add(ui.Label(
-    'Daily VIIRS fire pixel counts per province from July 1 through ' + END_DATE + '. ' +
+    'Weekly VIIRS fire pixel counts per province from July 1 through ' + END_DATE + '. ' +
     'Nominal and high confidence detections only. ' +
     'Use this to judge whether fire activity is peaking, declining, or still escalating.',
     {fontSize: '10px', color: '#666', margin: '0 0 4px 0'}
