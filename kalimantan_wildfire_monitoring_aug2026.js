@@ -35,7 +35,7 @@
 // ============================================================================
 // 1. CONFIGURATION -- all tuneable parameters in one place
 // ============================================================================
-var _cutoffMs  = new Date('2026-09-30').getTime();
+var _cutoffMs  = new Date('2026-10-31').getTime();
 var _endMs     = Math.min(Date.now(), _cutoffMs);
 function _fmt(ms) { return new Date(ms).toISOString().slice(0, 10); }
 var END_DATE       = _fmt(_endMs);
@@ -60,6 +60,9 @@ var BURN_MIN_HA    = 10;             // Minimum patch size for vectorized burn p
 // timeout risk for a region as large as Kalimantan. For smaller sub-AOIs,
 // reduce to 30 m.
 var VECTORIZE_SCALE = 60;
+
+// Full dry-season start for the daily trend chart (wider window than post-fire analysis)
+var SEASON_START = '2026-07-01';
 
 // Province names matching FAO GAUL 2024 Level 1 gaul1_name field.
 var KALIMANTAN_ADM1 = [
@@ -596,6 +599,65 @@ function buildVIIRSWeeklyPanel(provinces) {
 }
 
 // ============================================================================
+// 12c. VIIRS DAILY DRY-SEASON TREND CHART (province time series)
+// ============================================================================
+/**
+ * Builds a daily VIIRS fire pixel time-series line chart for the full dry
+ * season (SEASON_START to END_DATE), with one line per province.
+ * Uses ui.Chart.image.seriesByRegion() so each daily image is reduced to a
+ * per-province pixel count without materialising a large intermediate array.
+ *
+ * @param {ee.FeatureCollection} provinces - Kalimantan province polygons
+ * @returns {ui.Chart} Line chart widget ready to add to a panel
+ */
+function buildVIIRSDailyTrendChart(provinces) {
+  var shortProvinces = provinces.map(function(f) {
+    return f.set('short_name',
+      ee.String(f.get('gaul1_name')).replace('Kalimantan ', 'Kal. '));
+  });
+
+  // One image per day; mask to nominal+high confidence fire pixels only.
+  var fireCol = ee.ImageCollection('NASA/LANCE/SNPP_VIIRS/C2')
+    .filterDate(SEASON_START, END_DATE)
+    .filterBounds(aoi)
+    .select('confidence')
+    .map(function(img) {
+      return img.gte(1).selfMask().rename('fire_pixels')
+        .copyProperties(img, ['system:time_start']);
+    });
+
+  return ui.Chart.image.seriesByRegion({
+    imageCollection: fireCol,
+    regions        : shortProvinces,
+    reducer        : ee.Reducer.sum(),
+    scale          : 375,
+    seriesProperty : 'short_name',
+    xProperty      : 'system:time_start'
+  })
+  .setChartType('LineChart')
+  .setOptions({
+    title         : 'Daily Active Fire Pixels -- Jul to Oct 2026',
+    titleTextStyle: {fontSize: 10, bold: true, color: '#333'},
+    hAxis: {
+      title        : '',
+      textStyle    : {fontSize: 9},
+      format       : 'MMM d',
+      gridlines    : {count: -1}
+    },
+    vAxis: {
+      title    : 'Fire pixels (375 m)',
+      textStyle: {fontSize: 9},
+      minValue : 0
+    },
+    lineWidth : 1.5,
+    pointSize : 2,
+    chartArea : {left: 50, right: 8, top: 28, bottom: 60},
+    legend    : {position: 'bottom', textStyle: {fontSize: 9}},
+    colors    : ['#e74c3c', '#e67e22', '#f1c40f', '#27ae60', '#2980b9']
+  });
+}
+
+// ============================================================================
 // 13. BUILD LEFT SIDEBAR
 // ============================================================================
 /**
@@ -632,7 +694,7 @@ function buildLeftPanel(datbi, burnSeverity, sarChange, severityLayer, otsuVal,
   // --- Title block ---
   panel.add(ui.Label('Kalimantan Wildfire Monitor',
     {fontWeight: 'bold', fontSize: '16px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label('August 1-21, 2026 -- Active Fires & Burn Scars',
+  panel.add(ui.Label(START_DATE + ' to ' + END_DATE + ' -- Active Fires & Burn Scars',
     {fontSize: '12px', color: '#444', margin: '0 0 2px 0'}));
   panel.add(ui.Label('VIIRS NRT 375m  |  Landsat 8/9 dATBI  |  Sentinel-1 SAR',
     {fontSize: '11px', color: '#666', margin: '0 0 6px 0'}));
@@ -924,15 +986,14 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
   // --- Header ---
   panel.add(ui.Label('Fire Statistics',
     {fontWeight: 'bold', fontSize: '17px', margin: '0 0 2px 0'}));
-  panel.add(ui.Label('Kalimantan -- August 2026 rapid fire assessment',
+  panel.add(ui.Label('Kalimantan -- ' + START_DATE + ' to ' + END_DATE + ' rapid fire assessment',
     {fontSize: '11px', color: '#666', margin: '0 0 4px 0'}));
   panel.add(ui.Label(
-    'In August 2026, widespread fires were detected across Kalimantan ' +
-    '(Indonesian Borneo) during the annual dry season. Fires affected peatland ' +
-    'and forest areas across multiple provinces. The causes are under ' +
-    'investigation by relevant authorities. This map combines three satellite ' +
-    'systems to track where fires occurred, how severely vegetation was burned, ' +
-    'and where radar data reveals fire signals hidden under cloud cover.',
+    'Widespread fires have been detected across Kalimantan (Indonesian Borneo) ' +
+    'during the 2026 dry season. Fires affected peatland and forest areas across ' +
+    'multiple provinces. This map combines three satellite systems to track where ' +
+    'fires occurred, how severely vegetation was burned, and where radar data ' +
+    'reveals fire signals hidden under cloud cover.',
     {fontSize: '10px', color: '#333', margin: '4px 0 6px 0'}
   ));
   panel.add(divider());
@@ -982,6 +1043,17 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
       lbl.setValue(shortName + ': ' + (n != null ? n.toLocaleString() : '0') + ' fire pixels');
     });
   });
+
+  // --- Daily dry-season trend chart ---
+  panel.add(ui.Label('Daily Fire Trend -- Full Dry Season',
+    {fontWeight: 'bold', fontSize: '12px', margin: '6px 0 2px 0'}));
+  panel.add(ui.Label(
+    'Daily VIIRS fire pixel counts per province from July 1 through ' + END_DATE + '. ' +
+    'Nominal and high confidence detections only. ' +
+    'Use this to judge whether fire activity is peaking, declining, or still escalating.',
+    {fontSize: '10px', color: '#666', margin: '0 0 4px 0'}
+  ));
+  panel.add(buildVIIRSDailyTrendChart(provinces));
 
   // --- Weekly VIIRS fire activity chart ---
   panel.add(ui.Label('Weekly Fire Activity by Province',
@@ -1112,9 +1184,9 @@ function buildRightPanel(viirs, provinces, burnAreas, otsuVal) {
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
   panel.add(ui.Label(
-    '3. Time-series monitoring: weekly VIIRS fire pixel counts per province ' +
-    'are shown in the interactive chart above. Future work could extend to daily ' +
-    'resolution or the full dry-season window (June-September).',
+    '3. Time-series monitoring: daily and weekly VIIRS fire pixel counts per ' +
+    'province are shown in the interactive charts above. Future work could ' +
+    'extend to SAR-optical fusion for cloud-gap filling.',
     {fontSize: '10px', color: '#555', margin: '0 0 3px 8px'}
   ));
 
