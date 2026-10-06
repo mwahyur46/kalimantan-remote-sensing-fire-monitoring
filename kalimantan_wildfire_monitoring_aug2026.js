@@ -614,8 +614,8 @@ function buildVIIRSDailyTrendChart(provinces) {
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
                 'Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  var shortNames = ['Kal. Barat', 'Kal. Tengah', 'Kal. Selatan',
-                    'Kal. Timur', 'Kal. Utara'];
+  var shortNames = ['Kal Barat', 'Kal Tengah', 'Kal Selatan',
+                    'Kal Timur', 'Kal Utara'];
 
   // Build weekly aggregates as a FeatureCollection to avoid seriesByRegion
   // memory limits at Kalimantan scale (~540 000 km2 x 5 provinces x ~52 days).

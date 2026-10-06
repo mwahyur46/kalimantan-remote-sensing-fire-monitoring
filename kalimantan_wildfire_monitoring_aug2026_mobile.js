@@ -624,8 +624,8 @@ function buildVIIRSDailyTrendChart(provinces) {
   var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun',
                 'Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  var shortNames = ['Kal. Barat', 'Kal. Tengah', 'Kal. Selatan',
-                    'Kal. Timur', 'Kal. Utara'];
+  var shortNames = ['Kal Barat', 'Kal Tengah', 'Kal Selatan',
+                    'Kal Timur', 'Kal Utara'];
 
   var startMs = new Date(SEASON_START).getTime();
   var endMs   = new Date(END_DATE).getTime();
